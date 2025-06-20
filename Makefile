@@ -13,7 +13,7 @@ format:
 	uv run ruff format .
 
 typecheck:
-	uv run mypy src/
+	uv run pyright src/
 
 test:
 	uv run pytest -v
@@ -33,5 +33,5 @@ hooks:
 	uv run pre-commit install
 
 clean:
-	rm -rf dist/ .pytest_cache/ .mypy_cache/ .ruff_cache/
+	rm -rf dist/ .pytest_cache/ .ruff_cache/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

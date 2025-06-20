@@ -15,7 +15,7 @@ cli = "images_pipeline.main:main"
 dev = [
     "pytest>=8.3.4",
     "pytest-cov>=6.0.0",
-    "mypy>=1.14.1",
+    "pyright>=1.1.389",
     "ruff>=0.9.3",
     "pre-commit>=4.0.1",
 ]
@@ -24,9 +24,13 @@ dev = [
 line-length = 88
 target-version = "py312"
 
-[tool.mypy]
-python_version = "3.12"
-strict = true
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+reportMissingImports = true
+reportMissingTypeStubs = false
+include = ["src"]
+ignore = ["asyncio_example.py", "serial.py"]
 
 [tool.uv]
 package = true
