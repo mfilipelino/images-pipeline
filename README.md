@@ -350,7 +350,6 @@ When adding CPU-intensive operations like compression, you may need to reconside
 ---
 
 **Author**: Marcos Lino  
-**Company**: SSENSE  
 **Date**: 2025
 
 > 💡 **Remember**: Profile first, optimize second, and always choose the right tool for your specific bottleneck!
