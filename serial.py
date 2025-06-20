@@ -78,7 +78,6 @@ class ProcessingResult:
 def py_kmeans_quantize(img, k=8, max_iter=10):
     """Native Python K-means quantization implementation."""
     pixels = list(img.getdata())
-    n = len(pixels)
 
     # Random centroids
     centroids = random.sample(pixels, k)

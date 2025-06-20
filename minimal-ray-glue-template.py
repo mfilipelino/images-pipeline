@@ -1097,7 +1097,6 @@ def run_ray_logic(args):
     """Core Ray processing logic."""
     if args.debug:
         logger.setLevel(logging.DEBUG)
-        script_logger.setLevel(logging.DEBUG)
         logger.info("Debug logging enabled for s3_image_processor_ray.")
     else:  # Silence verbose boto logs unless in debug mode
         logging.getLogger("boto3").setLevel(logging.WARNING)

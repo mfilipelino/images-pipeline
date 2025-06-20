@@ -1,6 +1,5 @@
 """Tests for module1."""
 
-import pytest
 from images_pipeline.module1 import ImageConfig, process_image
 
 
