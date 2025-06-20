@@ -151,16 +151,16 @@ Before diving into Python's limitations, let's understand the fundamental differ
 ```
 Image 1: [Download][Process][Upload]
 Image 2:                            [Download][Process][Upload]  
-Image 3:                                                    [Download][Process][Upload]
+Image 3:                                                       [Download][Process][Upload]
 ```
 **Problem**: Only one task progresses at a time, CPU idle during I/O operations!
 
 ### 🥘 Concurrency Timeline (One Chef, Smart Task Switching):
 ```
 Image 1: [Download][Process][Upload]
-Image 2:  [Download]   [Process][Upload]        
-Image 3:   [Download]      [Process][Upload]  
-Image 4:    [Download]         [Process][Upload]
+Image 2:  [Download]        [Process][Upload]        
+Image 3:   [Download]                [Process][Upload]  
+Image 4:    [Download]                        [Process][Upload]
 ```
 
 **Concurrency** = One chef **switches** between tasks during waiting periods
@@ -216,20 +216,20 @@ Image 3: [Download][Process][Upload]
 
 #### Blocking I/O Timeline (What We Had):
 ```
-Image 1: [Download][Process][Upload]
-Image 2:                     [Download][Process][Upload]  
-Image 3:                                        [Download][Process][Upload]
+Image 1: [Download][P][Upload]
+Image 2:                      [Download][P][Upload]  
+Image 3:                                           [Download][P][Upload]
 ```
 **Problem**: CPU sits idle during every download/upload block!
 
 #### AsyncIO Timeline (The Solution):
 ```
-Image 1: [Download][Process][Upload]
-Image 2:  [Download]   [Process][Upload]        
-Image 3:   [Download]      [Process][Upload]  
-Image 4:    [Download]         [Process][Upload]
-Image 5:     [Download]            [Process][Upload]
-Image 6:      [Download]               [Process][Upload]
+Image 1: [Download][P][Upload]
+Image 2:  [Download]   [P][Upload]        
+Image 3:   [Download]      [P][Upload]  
+Image 4:    [Download]         [P][Upload]
+Image 5:     [Download]            [P][Upload]
+Image 6:      [Download]               [P][Upload]
 ```
 **Solution**: CPU never idle → Always has work to do!
 

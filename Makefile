@@ -1,55 +1,37 @@
-.PHONY: install lint format check test clean run help
+.PHONY: install update lint format typecheck test build docker-build docker-run ci hooks clean
 
-# Variables
-PYTHON := uv run python
-UV := uv
+install:
+	uv sync --dev
 
-help:  ## Show this help message
-	@echo "Available commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+update:
+	uv lock --upgrade
 
-install:  ## Install dependencies
-	$(UV) sync
+lint:
+	uv run ruff check .
 
-lint:  ## Run linting with ruff
-	$(UV) run ruff check .
+format:
+	uv run ruff format .
 
-format:  ## Format code with ruff
-	$(UV) run ruff format .
+typecheck:
+	uv run mypy src/
 
-check:  ## Run both linting and formatting checks
-	$(UV) run ruff check .
-	$(UV) run ruff format --check .
+test:
+	uv run pytest -v
 
-fix:  ## Auto-fix linting issues and format code
-	$(UV) run ruff check --fix .
-	$(UV) run ruff format .
+build:
+	uv build --out-dir dist/
 
-test:  ## Run tests (add test runner when available)
-	@echo "No test runner configured yet"
+docker-build:
+	docker build -t images-pipeline .
 
-clean:  ## Clean up build artifacts and cache
-	find . -type d -name "__pycache__" -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name ".pytest_cache" -exec rm -rf {} +
-	find . -type d -name "*.egg-info" -exec rm -rf {} +
+docker-run:
+	docker run --rm -it images-pipeline
 
-run-serial:  ## Run serial processing
-	$(PYTHON) serial.py
+ci: lint format typecheck test
 
-run-multithread:  ## Run multithreaded processing
-	$(PYTHON) multithreads.py
+hooks:
+	uv run pre-commit install
 
-run-multiprocess:  ## Run multiprocess processing
-	$(PYTHON) multiprocess.py
-
-run-asyncio:  ## Run async processing
-	$(PYTHON) asyncio.py
-
-run-ray:  ## Run Ray distributed processing
-	$(PYTHON) minimal-ray-glue-template.py
-
-dev-setup:  ## Complete development setup
-	$(UV) sync
-	$(UV) run ruff check --fix .
-	$(UV) run ruff format .
+clean:
+	rm -rf dist/ .pytest_cache/ .mypy_cache/ .ruff_cache/
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
