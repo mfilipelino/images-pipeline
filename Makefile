@@ -18,6 +18,9 @@ typecheck:
 test:
 	uv run pytest -v
 
+test-coverage:
+	uv run pytest --cov=src --cov-report=term-missing --cov-report=html
+
 build:
 	uv build --out-dir dist/
 
