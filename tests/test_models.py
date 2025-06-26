@@ -8,10 +8,7 @@ class TestProcessingConfig:
 
     def test_processing_config_creation_required_only(self):
         """Test creating ProcessingConfig with required parameters only."""
-        config = ProcessingConfig(
-            source_bucket="test-source",
-            dest_bucket="test-dest"
-        )
+        config = ProcessingConfig(source_bucket="test-source", dest_bucket="test-dest")
         assert config.source_bucket == "test-source"
         assert config.dest_bucket == "test-dest"
         assert config.source_prefix == ""
@@ -31,7 +28,7 @@ class TestProcessingConfig:
             transformation="grayscale",
             batch_size=50,
             concurrency=10,
-            debug=True
+            debug=True,
         )
         assert config.source_bucket == "test-source"
         assert config.dest_bucket == "test-dest"
@@ -44,10 +41,7 @@ class TestProcessingConfig:
 
     def test_processing_config_default_values(self):
         """Test ProcessingConfig default values."""
-        config = ProcessingConfig(
-            source_bucket="test-source",
-            dest_bucket="test-dest"
-        )
+        config = ProcessingConfig(source_bucket="test-source", dest_bucket="test-dest")
         assert config.source_prefix == ""
         assert config.dest_prefix == ""
         assert config.transformation is None
@@ -62,7 +56,7 @@ class TestProcessingConfig:
             dest_bucket="test-dest",
             batch_size=200,
             concurrency=40,
-            debug=True
+            debug=True,
         )
         assert isinstance(config.source_bucket, str)
         assert isinstance(config.dest_bucket, str)
@@ -75,14 +69,11 @@ class TestProcessingConfig:
 
     def test_processing_config_modification(self):
         """Test that ProcessingConfig fields can be modified."""
-        config = ProcessingConfig(
-            source_bucket="test-source",
-            dest_bucket="test-dest"
-        )
+        config = ProcessingConfig(source_bucket="test-source", dest_bucket="test-dest")
         config.batch_size = 250
         config.debug = True
         config.transformation = "kmeans"
-        
+
         assert config.batch_size == 250
         assert config.debug is True
         assert config.transformation == "kmeans"
@@ -93,31 +84,22 @@ class TestImageItem:
 
     def test_image_item_creation(self):
         """Test creating ImageItem with required parameters."""
-        item = ImageItem(
-            source_key="source/image.jpg",
-            dest_key="dest/image.jpg"
-        )
+        item = ImageItem(source_key="source/image.jpg", dest_key="dest/image.jpg")
         assert item.source_key == "source/image.jpg"
         assert item.dest_key == "dest/image.jpg"
 
     def test_image_item_field_types(self):
         """Test ImageItem field types."""
-        item = ImageItem(
-            source_key="source/image.jpg",
-            dest_key="dest/image.jpg"
-        )
+        item = ImageItem(source_key="source/image.jpg", dest_key="dest/image.jpg")
         assert isinstance(item.source_key, str)
         assert isinstance(item.dest_key, str)
 
     def test_image_item_modification(self):
         """Test that ImageItem fields can be modified."""
-        item = ImageItem(
-            source_key="source/image.jpg",
-            dest_key="dest/image.jpg"
-        )
+        item = ImageItem(source_key="source/image.jpg", dest_key="dest/image.jpg")
         item.source_key = "new_source/image.jpg"
         item.dest_key = "new_dest/image.jpg"
-        
+
         assert item.source_key == "new_source/image.jpg"
         assert item.dest_key == "new_dest/image.jpg"
 
@@ -150,7 +132,7 @@ class TestProcessingResult:
             success=True,
             error="",
             exif_data=exif_data,
-            processing_time=1.5
+            processing_time=1.5,
         )
         assert result.source_key == "test.jpg"
         assert result.dest_key == "output/test.jpg"
@@ -176,7 +158,7 @@ class TestProcessingResult:
             success=True,
             error="test error",
             exif_data={"key": "value"},
-            processing_time=2.5
+            processing_time=2.5,
         )
         assert isinstance(result.source_key, str)
         assert isinstance(result.dest_key, str)
@@ -193,7 +175,7 @@ class TestProcessingResult:
         result.error = "test error"
         result.exif_data = {"modified": "data"}
         result.processing_time = 3.0
-        
+
         assert result.dest_key == "modified/test.jpg"
         assert result.success is True
         assert result.error == "test error"
@@ -204,10 +186,10 @@ class TestProcessingResult:
         """Test that exif_data uses factory function for default."""
         result1 = ProcessingResult(source_key="test1.jpg")
         result2 = ProcessingResult(source_key="test2.jpg")
-        
+
         # Should be different dict instances
         assert result1.exif_data is not result2.exif_data
-        
+
         # Modifying one shouldn't affect the other
         result1.exif_data["test"] = "value"
         assert "test" not in result2.exif_data
@@ -216,18 +198,14 @@ class TestProcessingResult:
         """Test different success/error scenarios."""
         # Success case
         success_result = ProcessingResult(
-            source_key="success.jpg",
-            success=True,
-            error=""
+            source_key="success.jpg", success=True, error=""
         )
         assert success_result.success is True
         assert success_result.error == ""
-        
+
         # Error case
         error_result = ProcessingResult(
-            source_key="error.jpg",
-            success=False,
-            error="File not found"
+            source_key="error.jpg", success=False, error="File not found"
         )
         assert error_result.success is False
         assert error_result.error == "File not found"
@@ -241,16 +219,11 @@ class TestProcessingResult:
             "iso": 100,
             "aperture": 2.8,
             "exposure_time": "1/100",
-            "nested": {
-                "gps": {"lat": 40.7128, "lon": -74.0060}
-            }
+            "nested": {"gps": {"lat": 40.7128, "lon": -74.0060}},
         }
-        
-        result = ProcessingResult(
-            source_key="complex.jpg",
-            exif_data=complex_exif
-        )
-        
+
+        result = ProcessingResult(source_key="complex.jpg", exif_data=complex_exif)
+
         assert result.exif_data == complex_exif
         assert result.exif_data["make"] == "Canon"
         assert result.exif_data["nested"]["gps"]["lat"] == 40.7128

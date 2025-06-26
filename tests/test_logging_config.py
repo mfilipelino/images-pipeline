@@ -8,7 +8,7 @@ from images_pipeline.core.logging_config import (
     setup_logger,
     get_logger,
     configure_multiprocessing_logging,
-    logger
+    logger,
 )
 
 
@@ -50,7 +50,7 @@ class TestSetupLogger:
         test_logger = setup_logger(name="test-structured", format_type="structured")
         handler = test_logger.handlers[0]
         formatter = handler.formatter
-        
+
         # Check that formatter contains expected structured elements
         format_string = formatter._fmt
         assert "%(asctime)s" in format_string
@@ -65,7 +65,7 @@ class TestSetupLogger:
         test_logger = setup_logger(name="test-simple", format_type="simple")
         handler = test_logger.handlers[0]
         formatter = handler.formatter
-        
+
         # Check that formatter contains expected simple elements
         format_string = formatter._fmt
         assert "%(asctime)s" in format_string
@@ -79,7 +79,7 @@ class TestSetupLogger:
             test_logger = setup_logger(name="test-env-format", format_type="structured")
             handler = test_logger.handlers[0]
             formatter = handler.formatter
-            
+
             # Should use simple format from env var, not structured from parameter
             format_string = formatter._fmt
             assert "%(filename)s" not in format_string  # Not in simple format
@@ -89,7 +89,7 @@ class TestSetupLogger:
         logger_name = "test-no-duplicates"
         test_logger1 = setup_logger(name=logger_name)
         test_logger2 = setup_logger(name=logger_name)
-        
+
         # Should be the same logger instance
         assert test_logger1 is test_logger2
         assert len(test_logger1.handlers) == 1
@@ -125,17 +125,19 @@ class TestGetLogger:
 class TestConfigureMultiprocessingLogging:
     """Tests for configure_multiprocessing_logging function."""
 
-    @patch('multiprocessing.current_process')
-    @patch('images_pipeline.core.logging_config.setup_logger')
-    def test_configure_multiprocessing_logging(self, mock_setup_logger, mock_current_process):
+    @patch("multiprocessing.current_process")
+    @patch("images_pipeline.core.logging_config.setup_logger")
+    def test_configure_multiprocessing_logging(
+        self, mock_setup_logger, mock_current_process
+    ):
         """Test configure_multiprocessing_logging creates process-specific logger."""
         # Mock the current process
         mock_process = MagicMock()
         mock_process.name = "TestProcess-1"
         mock_current_process.return_value = mock_process
-        
+
         configure_multiprocessing_logging()
-        
+
         # Verify setup_logger was called with process-specific name
         expected_logger_name = "images-pipeline.TestProcess-1"
         mock_setup_logger.assert_called_once_with(expected_logger_name)
@@ -162,7 +164,7 @@ class TestLoggingIntegration:
     def test_logger_actually_logs_messages(self):
         """Test that logger actually outputs log messages."""
         test_logger = setup_logger(name="test-integration", level="DEBUG")
-        
+
         # Test that the logger has a handler configured to stdout
         assert len(test_logger.handlers) == 1
         handler = test_logger.handlers[0]
@@ -171,8 +173,8 @@ class TestLoggingIntegration:
     def test_different_log_levels_work(self):
         """Test that different log levels work correctly."""
         test_logger = setup_logger(name="test-levels", level="DEBUG")
-        
-        with patch('sys.stdout'):
+
+        with patch("sys.stdout"):
             # These should not raise exceptions
             test_logger.debug("Debug message")
             test_logger.info("Info message")
@@ -184,11 +186,11 @@ class TestLoggingIntegration:
         """Test that log level filtering works correctly."""
         # Logger set to WARNING should not output INFO messages
         test_logger = setup_logger(name="test-filtering", level="WARNING")
-        
-        with patch('sys.stdout'):
+
+        with patch("sys.stdout"):
             test_logger.info("This should not appear")
             test_logger.warning("This should appear")
-            
+
             # Info should not write to stdout, warning should
             # We can't easily test the exact calls due to formatting,
             # but we can verify the logger level is set correctly
