@@ -324,20 +324,15 @@ class TestSklearnKmeansQuantize:
         """Test that sklearn_kmeans_quantize function exists and is callable."""
         assert callable(sklearn_kmeans_quantize)
 
-    def test_sklearn_kmeans_quantize_with_mock_dependencies(self):
-        """Test sklearn_kmeans_quantize with mocked dependencies."""
-        # Mock the try-except block to simulate missing dependencies
-        with patch(
-            "images_pipeline.core.image_utils.sklearn_kmeans_quantize"
-        ) as mock_func:
-            mock_func.side_effect = ImportError(
-                "numpy and scikit-learn are required for sklearn_kmeans_quantize"
-            )
-
+    def test_sklearn_kmeans_quantize_with_missing_dependencies(self):
+        """Test sklearn_kmeans_quantize with missing dependencies."""
+        # Simulate a missing dependency by removing it from sys.modules
+        with patch.dict("sys.modules", {"numpy": None}):
             with pytest.raises(
                 ImportError, match="numpy and scikit-learn are required"
             ):
-                mock_func(Mock())
+                # Call the actual function, which should now raise an ImportError
+                sklearn_kmeans_quantize(Mock())
 
 
 class TestNativeKmeansQuantize:
