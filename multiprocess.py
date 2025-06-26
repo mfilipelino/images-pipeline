@@ -5,22 +5,22 @@ Educational Multiprocessing implementation for image processing pipeline.
 Download → Process (EXIF/Transform) → Upload
 """
 
-import os
 import sys
 import time
 import logging
 import argparse
-import random
-from typing import Dict, List, Any
+from typing import Dict, List
 from dataclasses import dataclass
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import boto3
-import numpy as np
-from sklearn.cluster import KMeans
 from PIL import Image
-from PIL.ExifTags import TAGS
 
+from src.images_pipeline.core.image_utils import (
+    apply_transformation,
+    calculate_dest_key,
+    extract_exif_data,
+)
 from src.images_pipeline.core import ProcessingConfig, ProcessingResult
 
 
@@ -58,134 +58,10 @@ class S3ObjectInfo:
     size: int = 0
 
 
-# Native Python K-means implementation for educational purposes
-def native_kmeans_quantize(img, k=8, max_iter=10):
-    """
-    Native Python K-means quantization implementation.
-    Educational example of clustering without external libraries.
-    """
-    pixels = list(img.getdata())
-
-    # Initialize random centroids
-    centroids = random.sample(pixels, k)
-
-    for iteration in range(max_iter):
-        # Assignment step: assign each pixel to nearest centroid
-        clusters = {i: [] for i in range(k)}
-        for pixel in pixels:
-            distances = [
-                sum((pixel[d] - centroids[c][d]) ** 2 for d in range(3))
-                for c in range(k)
-            ]
-            closest_centroid = distances.index(min(distances))
-            clusters[closest_centroid].append(pixel)
-
-        # Update step: recalculate centroids
-        new_centroids = []
-        for i in range(k):
-            if clusters[i]:
-                # Calculate mean of each color channel
-                mean_color = tuple(
-                    sum(pixel[channel] for pixel in clusters[i]) // len(clusters[i])
-                    for channel in range(3)
-                )
-                new_centroids.append(mean_color)
-            else:
-                # Empty cluster - reinitialize randomly
-                new_centroids.append(random.choice(pixels))
-
-        # Check for convergence
-        if new_centroids == centroids:
-            break
-
-        centroids = new_centroids
-
-    # Create quantized image
-    quantized_pixels = []
-    for pixel in pixels:
-        distances = [
-            sum((pixel[d] - centroids[c][d]) ** 2 for d in range(3)) for c in range(k)
-        ]
-        closest_centroid = distances.index(min(distances))
-        quantized_pixels.append(closest_centroid)
-
-    # Create palette image
-    palette = [color for centroid in centroids for color in centroid] + [0] * (
-        768 - 3 * k
-    )
-
-    quantized_img = Image.new("P", img.size)
-    quantized_img.putpalette(palette)
-    quantized_img.putdata(quantized_pixels)
-
-    return quantized_img.convert("RGB")
+# Data structures and image processing functions now imported from core modules
 
 
-# Image processing functions
-def apply_transformation(
-    img: Image.Image, transformation: str, source_key: str
-) -> Image.Image:
-    """Apply selected image transformation."""
-
-    if transformation == "grayscale":
-        return img.convert("L").convert("RGB")  # Convert back to RGB for consistency
-
-    elif transformation == "kmeans":
-        # Scikit-learn K-means
-        arr = np.array(img).reshape(-1, 3)
-        kmeans = KMeans(n_clusters=8, random_state=42, n_init=10).fit(arr)
-        labels = kmeans.predict(arr)
-        compressed = kmeans.cluster_centers_[labels].reshape(
-            img.size[1], img.size[0], 3
-        )
-        return Image.fromarray(compressed.astype("uint8"))
-
-    elif transformation == "native_kmeans":
-        # Pure Python K-means for educational purposes
-        return native_kmeans_quantize(img, k=8, max_iter=10)
-
-    else:
-        return img
-
-
-def extract_exif_data(image: Image.Image, source_key: str) -> Dict[str, Any]:
-    """Extract EXIF data from PIL Image object."""
-    exif_data = {}
-
-    try:
-        # Get basic image info
-        exif_data["width"], exif_data["height"] = image.size
-        exif_data["format"] = image.format
-        exif_data["mode"] = image.mode
-
-        # Extract EXIF tags
-        raw_exif = image._getexif()
-        if raw_exif:
-            for tag_id, value in raw_exif.items():
-                tag_name = TAGS.get(tag_id, str(tag_id))
-
-                # Skip GPS data for privacy
-                if tag_name == "GPSInfo":
-                    continue
-
-                # Convert value to string for logging
-                if isinstance(value, bytes):
-                    try:
-                        value = value.decode("utf-8", errors="replace")
-                    except Exception:
-                        value = str(value)
-                elif isinstance(value, (list, tuple)):
-                    value = str(value)
-
-                exif_data[tag_name] = str(value) if value is not None else ""
-
-        else:
-            pass  # No EXIF data found
-
-    except Exception as e:
-        exif_data["exif_error"] = str(e)
-
-    return exif_data
+# Image processing functions now imported from core.image_utils
 
 
 # S3 operations - Modified for multiprocessing
@@ -219,16 +95,7 @@ def list_s3_objects_worker(bucket: str, prefix: str) -> Dict[str, S3ObjectInfo]:
     return objects
 
 
-def calculate_dest_key(source_key: str, source_prefix: str, dest_prefix: str) -> str:
-    """Calculate destination key from source key and prefixes."""
-    if source_prefix and source_key.startswith(source_prefix):
-        relative_key = source_key[len(source_prefix) :].lstrip("/")
-    else:
-        relative_key = os.path.basename(source_key)
-
-    if dest_prefix:
-        return f"{dest_prefix.rstrip('/')}/{relative_key}"
-    return relative_key
+# calculate_dest_key function now imported from core.image_utils
 
 
 def process_single_image(source_key: str, config: ProcessingConfig) -> ProcessingResult:
@@ -252,15 +119,13 @@ def process_single_image(source_key: str, config: ProcessingConfig) -> Processin
         image.load()  # Force loading into memory
 
         # Step 3: Extract EXIF data (always enabled for learning)
-        exif_data = extract_exif_data(image, source_key)
+        exif_data = extract_exif_data(image)
         result.exif_data = exif_data
 
         # Step 4: Apply transformation
         processed_image = image
         if config.transformation:
-            processed_image = apply_transformation(
-                image, config.transformation, source_key
-            )
+            processed_image = apply_transformation(image, config.transformation)
 
         # Step 5: Upload processed image
         dest_key = calculate_dest_key(
