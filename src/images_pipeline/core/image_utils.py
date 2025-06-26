@@ -93,7 +93,7 @@ def apply_transformation(img: "Image.Image", transformation: str) -> "Image.Imag
     Args:
         img: PIL Image to transform
         transformation: Type of transformation ("grayscale", "kmeans", "native_kmeans")
-            Note: "native_kmeans" is deprecated, use "kmeans" instead
+            Note: "native_kmeans" is deprecated, use "kmeans" instead. See DEPRECATION_NOTICE.md for details.
 
     Returns:
         Transformed PIL Image
