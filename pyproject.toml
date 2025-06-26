@@ -10,6 +10,7 @@ dependencies = [
 
 [project.scripts]
 cli = "images_pipeline.main:main"
+process-images = "images_pipeline.process_images:main"
 
 [dependency-groups]
 dev = [
@@ -30,7 +31,7 @@ typeCheckingMode = "strict"
 reportMissingImports = true
 reportMissingTypeStubs = false
 include = ["src"]
-ignore = ["asyncio_example.py", "serial.py", "multiprocess.py", "multithreads.py", "src/images_pipeline/core/image_utils.py"]
+ignore = ["asyncio_example.py", "serial.py", "multiprocess.py", "multithreads.py", "src/images_pipeline/core/image_utils.py", "src/images_pipeline/processors/*.py", "src/images_pipeline/process_images.py"]
 
 [tool.uv]
 package = true
