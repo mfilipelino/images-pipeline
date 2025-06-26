@@ -4,11 +4,7 @@ import pytest
 from unittest.mock import Mock, MagicMock
 
 from src.images_pipeline.core import ProcessingConfig, ImageItem
-from src.images_pipeline.processors import (
-    serial_process_batch,
-    multithread_process_batch,
-    multiprocess_process_batch,
-)
+from src.images_pipeline.processors import serial_process_batch
 
 
 def test_serial_processor():
