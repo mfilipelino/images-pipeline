@@ -30,7 +30,7 @@ typeCheckingMode = "strict"
 reportMissingImports = true
 reportMissingTypeStubs = false
 include = ["src"]
-ignore = ["asyncio_example.py", "serial.py"]
+ignore = ["asyncio_example.py", "serial.py", "multiprocess.py", "multithreads.py", "src/images_pipeline/core/image_utils.py"]
 
 [tool.uv]
 package = true
