@@ -2,7 +2,7 @@
 
 import io
 import time
-from typing import List
+from typing import List, Tuple
 
 import boto3
 from PIL import Image
@@ -205,6 +205,104 @@ def log_batch_progress(
     )
 
 
+def discover_and_validate_files(s3_client, config: ProcessingConfig) -> List[str]:
+    """
+    Discover and validate JPEG files to process.
+
+    Args:
+        s3_client: S3 client instance
+        config: Processing configuration
+
+    Returns:
+        List of source file keys
+
+    Raises:
+        ValueError: If no files found
+    """
+    logger = get_logger("processor")
+    logger.info("Discovering JPEG files to process...")
+
+    source_files = list_jpeg_files(
+        s3_client, config.source_bucket, config.source_prefix
+    )
+
+    if not source_files:
+        logger.info("No JPEG files found. Exiting.")
+        raise ValueError("No JPEG files found to process")
+
+    return source_files
+
+
+def count_batch_results(results: List[ProcessingResult]) -> Tuple[int, int]:
+    """
+    Count successful and failed results in a batch.
+
+    Args:
+        results: List of processing results
+
+    Returns:
+        Tuple of (processed_count, error_count)
+    """
+    processed_count = 0
+    error_count = 0
+
+    for result in results:
+        if result.success:
+            processed_count += 1
+        else:
+            error_count += 1
+
+    return processed_count, error_count
+
+
+def process_all_batches(
+    work_items: List[ImageItem],
+    config: ProcessingConfig,
+    s3_client,
+    process_batch_fn,
+) -> Tuple[int, int]:
+    """
+    Process all work items in batches.
+
+    Args:
+        work_items: List of items to process
+        config: Processing configuration
+        s3_client: S3 client instance
+        process_batch_fn: Function to process a batch of items
+
+    Returns:
+        Tuple of (total_processed_count, total_error_count)
+    """
+    total_processed = 0
+    total_errors = 0
+
+    for i in range(0, len(work_items), config.batch_size):
+        batch = work_items[i : i + config.batch_size]
+        batch_start_time = time.time()
+
+        # Process batch using provided function
+        results = process_batch_fn(batch, config, s3_client)
+
+        # Count results for this batch
+        batch_processed, batch_errors = count_batch_results(results)
+        total_processed += batch_processed
+        total_errors += batch_errors
+
+        # Progress reporting
+        batch_time = time.time() - batch_start_time
+        log_batch_progress(
+            i,
+            len(batch),
+            len(work_items),
+            batch_time,
+            total_processed,
+            total_errors,
+            config,
+        )
+
+    return total_processed, total_errors
+
+
 def run_processing(
     config: ProcessingConfig,
     processor_name: str,
@@ -226,50 +324,21 @@ def run_processing(
         session = boto3.Session()
         s3_client = session.client("s3")
 
-        # List all JPEG files to process
-        logger = get_logger("processor")
-        logger.info("Discovering JPEG files to process...")
-        source_files = list_jpeg_files(
-            s3_client, config.source_bucket, config.source_prefix
-        )
-
-        if not source_files:
-            logger.info("No JPEG files found. Exiting.")
-            return
+        # Discover and validate files
+        try:
+            source_files = discover_and_validate_files(s3_client, config)
+        except ValueError:
+            return  # No files found, exit gracefully
 
         # Create work items
         work_items = create_work_items(source_files, config)
+        logger = get_logger("processor")
         logger.info(f"Processing {len(work_items)} images...")
 
-        # Process images in batches
-        processed_count = 0
-        error_count = 0
-
-        for i in range(0, len(work_items), config.batch_size):
-            batch = work_items[i : i + config.batch_size]
-            batch_start_time = time.time()
-
-            # Process batch using provided function
-            results = process_batch_fn(batch, config, s3_client)
-
-            # Count results
-            for result in results:
-                if result.success:
-                    processed_count += 1
-                else:
-                    error_count += 1
-
-            # Progress reporting
-            batch_time = time.time() - batch_start_time
-            log_batch_progress(
-                i,
-                len(batch),
-                len(work_items),
-                batch_time,
-                processed_count,
-                error_count,
-                config,
-            )
+        # Process all batches
+        processed_count, error_count = process_all_batches(
+            work_items, config, s3_client, process_batch_fn
+        )
 
         # Final statistics
         total_time = time.time() - start_time
