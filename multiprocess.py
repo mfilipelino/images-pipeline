@@ -9,7 +9,7 @@ import sys
 import time
 import logging
 import argparse
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 from dataclasses import dataclass
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -21,6 +21,7 @@ from src.images_pipeline.core.image_utils import (
     calculate_dest_key,
     extract_exif_data,
 )
+from src.images_pipeline.core import ProcessingConfig, ProcessingResult
 
 
 # Logging setup
@@ -44,19 +45,7 @@ def setup_logger(name: str = "s3-multiprocess-processor") -> logging.Logger:
 logger = setup_logger()
 
 
-# Data structures
-@dataclass
-class ProcessingConfig:
-    """Configuration for the processing job."""
-
-    source_bucket: str
-    dest_bucket: str
-    source_prefix: str = ""
-    dest_prefix: str = ""
-    transformation: Optional[str] = None
-    concurrency: int = 20
-    batch_size: int = 50
-    debug: bool = False
+# Data structures are now imported from core module
 
 
 @dataclass
@@ -69,23 +58,7 @@ class S3ObjectInfo:
     size: int = 0
 
 
-@dataclass
-class ProcessingResult:
-    """Result of processing a single image."""
-
-    source_key: str
-    success: bool = False
-    error_message: str = ""
-    dest_key: str = ""
-    exif_data: Dict[str, Any] = None
-    processing_time: float = 0.0
-
-    def __post_init__(self):
-        if self.exif_data is None:
-            self.exif_data = {}
-
-
-# Image processing functions now imported from core.image_utils
+# Data structures and image processing functions now imported from core modules
 
 
 # Image processing functions now imported from core.image_utils
@@ -180,7 +153,7 @@ def process_single_image(source_key: str, config: ProcessingConfig) -> Processin
         result.processing_time = time.time() - start_time
 
     except Exception as e:
-        result.error_message = str(e)
+        result.error = str(e)
         result.processing_time = time.time() - start_time
 
     return result

@@ -11,7 +11,7 @@ import time
 import logging
 import argparse
 import random
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
@@ -21,6 +21,8 @@ import numpy as np
 from sklearn.cluster import KMeans
 from PIL import Image
 from PIL.ExifTags import TAGS
+
+from src.images_pipeline.core import ProcessingConfig, ProcessingResult
 
 
 # Logging setup
@@ -44,19 +46,7 @@ def setup_logger(name: str = "s3-threaded-processor") -> logging.Logger:
 logger = setup_logger()
 
 
-# Data structures
-@dataclass
-class ProcessingConfig:
-    """Configuration for the processing job."""
-
-    source_bucket: str
-    dest_bucket: str
-    source_prefix: str = ""
-    dest_prefix: str = ""
-    transformation: Optional[str] = None
-    concurrency: int = 20
-    batch_size: int = 50
-    debug: bool = False
+# Data structures are now imported from core module
 
 
 @dataclass
@@ -67,22 +57,6 @@ class S3ObjectInfo:
     etag: str
     last_modified: str
     size: int = 0
-
-
-@dataclass
-class ProcessingResult:
-    """Result of processing a single image."""
-
-    source_key: str
-    success: bool = False
-    error_message: str = ""
-    dest_key: str = ""
-    exif_data: Dict[str, Any] = None
-    processing_time: float = 0.0
-
-    def __post_init__(self):
-        if self.exif_data is None:
-            self.exif_data = {}
 
 
 # Thread-local storage for boto3 clients
@@ -359,7 +333,7 @@ def process_single_image(source_key: str, config: ProcessingConfig) -> Processin
         )
 
     except Exception as e:
-        result.error_message = str(e)
+        result.error = str(e)
         result.processing_time = time.time() - start_time
         logger.error(f"[{source_key}] Processing failed: {e}")
 
