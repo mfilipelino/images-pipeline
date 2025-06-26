@@ -9,7 +9,7 @@ import sys
 import time
 import logging
 import argparse
-from typing import Dict, List, Any
+from typing import Dict, List
 from dataclasses import dataclass
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
