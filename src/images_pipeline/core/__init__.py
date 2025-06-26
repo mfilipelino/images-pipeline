@@ -7,6 +7,11 @@ from .image_utils import (
     native_kmeans_quantize,
     sklearn_kmeans_quantize,
 )
+from .logging_config import (
+    configure_multiprocessing_logging,
+    get_logger,
+    setup_logger,
+)
 from .models import ImageItem, ProcessingConfig, ProcessingResult
 
 __all__ = [
@@ -18,4 +23,7 @@ __all__ = [
     "extract_exif_data",
     "native_kmeans_quantize",
     "sklearn_kmeans_quantize",
+    "setup_logger",
+    "get_logger",
+    "configure_multiprocessing_logging",
 ]

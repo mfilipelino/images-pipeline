@@ -19,28 +19,15 @@ from src.images_pipeline.core.image_utils import (
     calculate_dest_key,
     extract_exif_data,
 )
-from src.images_pipeline.core import ProcessingConfig, ImageItem, ProcessingResult
+from src.images_pipeline.core import (
+    ProcessingConfig,
+    ImageItem,
+    ProcessingResult,
+    get_logger,
+)
 
-
-# Logging setup
-def setup_logger(name: str = "s3-processor") -> logging.Logger:
-    """Setup consistent logging."""
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
-
-    if not logger.handlers:
-        handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
-    logger.propagate = False
-    return logger
-
-
-logger = setup_logger()
+# Get centralized logger
+logger = get_logger("serial-processor")
 
 
 # Data structures are now imported from core module

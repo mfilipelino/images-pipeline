@@ -5,45 +5,32 @@ Educational Threading implementation for image processing pipeline.
 Download → Process (EXIF/Transform) → Upload
 """
 
-import os
 import sys
 import time
 import logging
 import argparse
 import random
-from typing import Dict, List, Any
+from typing import Dict, List
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 import boto3
-import numpy as np
-from sklearn.cluster import KMeans
 from PIL import Image
-from PIL.ExifTags import TAGS
 
-from src.images_pipeline.core import ProcessingConfig, ProcessingResult
+from src.images_pipeline.core.image_utils import (
+    apply_transformation,
+    calculate_dest_key,
+    extract_exif_data,
+)
+from src.images_pipeline.core import (
+    ProcessingConfig,
+    ProcessingResult,
+    get_logger,
+)
 
-
-# Logging setup
-def setup_logger(name: str = "s3-threaded-processor") -> logging.Logger:
-    """Setup consistent logging across the application."""
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
-
-    if not logger.handlers:
-        handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
-    logger.propagate = False
-    return logger
-
-
-logger = setup_logger()
+# Get centralized logger
+logger = get_logger("multithreads-processor")
 
 
 # Data structures are now imported from core module
@@ -134,74 +121,7 @@ def native_kmeans_quantize(img, k=8, max_iter=10):
     return quantized_img.convert("RGB")
 
 
-# Image processing functions
-def apply_transformation(
-    img: Image.Image, transformation: str, source_key: str
-) -> Image.Image:
-    """Apply selected image transformation."""
-    logger.debug(f"[{source_key}] Applying {transformation} transformation")
-
-    if transformation == "grayscale":
-        return img.convert("L").convert("RGB")  # Convert back to RGB for consistency
-
-    elif transformation == "kmeans":
-        # Scikit-learn K-means
-        arr = np.array(img).reshape(-1, 3)
-        kmeans = KMeans(n_clusters=8, random_state=42, n_init=10).fit(arr)
-        labels = kmeans.predict(arr)
-        compressed = kmeans.cluster_centers_[labels].reshape(
-            img.size[1], img.size[0], 3
-        )
-        return Image.fromarray(compressed.astype("uint8"))
-
-    elif transformation == "native_kmeans":
-        # Pure Python K-means for educational purposes
-        return native_kmeans_quantize(img, k=8, max_iter=10)
-
-    else:
-        return img
-
-
-def extract_exif_data(image: Image.Image, source_key: str) -> Dict[str, Any]:
-    """Extract EXIF data from PIL Image object."""
-    exif_data = {}
-
-    try:
-        # Get basic image info
-        exif_data["width"], exif_data["height"] = image.size
-        exif_data["format"] = image.format
-        exif_data["mode"] = image.mode
-
-        # Extract EXIF tags
-        raw_exif = image._getexif()
-        if raw_exif:
-            for tag_id, value in raw_exif.items():
-                tag_name = TAGS.get(tag_id, str(tag_id))
-
-                # Skip GPS data for privacy
-                if tag_name == "GPSInfo":
-                    continue
-
-                # Convert value to string for logging
-                if isinstance(value, bytes):
-                    try:
-                        value = value.decode("utf-8", errors="replace")
-                    except Exception:
-                        value = str(value)
-                elif isinstance(value, (list, tuple)):
-                    value = str(value)
-
-                exif_data[tag_name] = str(value) if value is not None else ""
-
-            logger.debug(f"[{source_key}] Extracted {len(exif_data)} EXIF fields")
-        else:
-            logger.debug(f"[{source_key}] No EXIF data found")
-
-    except Exception as e:
-        logger.warning(f"[{source_key}] EXIF extraction failed: {e}")
-        exif_data["exif_error"] = str(e)
-
-    return exif_data
+# Image processing functions now imported from core.image_utils
 
 
 # S3 operations
@@ -237,16 +157,7 @@ def list_s3_objects(bucket: str, prefix: str) -> Dict[str, S3ObjectInfo]:
     return objects
 
 
-def calculate_dest_key(source_key: str, source_prefix: str, dest_prefix: str) -> str:
-    """Calculate destination key from source key and prefixes."""
-    if source_prefix and source_key.startswith(source_prefix):
-        relative_key = source_key[len(source_prefix) :].lstrip("/")
-    else:
-        relative_key = os.path.basename(source_key)
-
-    if dest_prefix:
-        return f"{dest_prefix.rstrip('/')}/{relative_key}"
-    return relative_key
+# calculate_dest_key function now imported from core.image_utils
 
 
 def process_single_image(source_key: str, config: ProcessingConfig) -> ProcessingResult:
