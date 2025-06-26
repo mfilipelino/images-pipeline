@@ -11,14 +11,15 @@ import time
 import logging
 import argparse
 import random
-from typing import List, Optional
-from dataclasses import dataclass
+from typing import List
 
 import boto3
 import numpy as np
 from sklearn.cluster import KMeans
 from PIL import Image
 from PIL.ExifTags import TAGS
+
+from src.images_pipeline.core import ProcessingConfig, ImageItem, ProcessingResult
 
 
 # Logging setup
@@ -42,36 +43,7 @@ def setup_logger(name: str = "s3-processor") -> logging.Logger:
 logger = setup_logger()
 
 
-# Data structures
-@dataclass
-class ProcessingConfig:
-    """Configuration for the processing job."""
-
-    source_bucket: str
-    dest_bucket: str
-    source_prefix: str = ""
-    dest_prefix: str = ""
-    transformation: Optional[str] = None
-    batch_size: int = 100
-    debug: bool = False
-
-
-@dataclass
-class ImageItem:
-    """Represents an image to be processed."""
-
-    source_key: str
-    dest_key: str
-
-
-@dataclass
-class ProcessingResult:
-    """Result of processing a single image."""
-
-    source_key: str
-    dest_key: str
-    success: bool = False
-    error: str = ""
+# Data structures are now imported from core module
 
 
 # Native Python K-means implementation
