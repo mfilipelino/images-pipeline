@@ -1,6 +1,7 @@
 """Image processing utilities for the images pipeline."""
 
 import random
+from collections.abc import Iterable
 from typing import Any, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -58,8 +59,8 @@ def native_kmeans_quantize(
                 )
                 new_centroids.append(mean_pixel)
             else:
-                # Keep old centroid if cluster is empty
-                new_centroids.append(centroids[i])
+                # Reinitialize empty cluster with random pixel
+                new_centroids.append(random.choice(pixels))
 
         # Check for convergence
         if new_centroids == centroids:
@@ -182,7 +183,7 @@ def extract_exif_data(img: "Image.Image") -> Dict[str, Any]:
                     value = value.decode("utf-8")
                 except UnicodeDecodeError:
                     value = str(value)
-            elif hasattr(value, "__iter__") and not isinstance(value, str):
+            elif isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
                 value = str(value)
 
             exif_dict[str(tag)] = value
