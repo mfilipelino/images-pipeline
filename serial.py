@@ -106,7 +106,9 @@ def process_single_image(
         # Step 3: Extract EXIF (but don't save it)
         logger.debug(f"[{item.source_key}] Extracting EXIF data.")
         exif_data = extract_exif_data(image)
-        logger.debug(f"[{item.source_key}] EXIF extracted: {len(exif_data)} fields found.")
+        logger.debug(
+            f"[{item.source_key}] EXIF extracted: {len(exif_data)} fields found."
+        )
 
         # Step 4: Apply transformation if specified
         if config.transformation:

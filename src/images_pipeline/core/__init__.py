@@ -11,10 +11,10 @@ from .models import ImageItem, ProcessingConfig, ProcessingResult
 
 __all__ = [
     "ProcessingConfig",
-    "ImageItem", 
+    "ImageItem",
     "ProcessingResult",
     "apply_transformation",
-    "calculate_dest_key", 
+    "calculate_dest_key",
     "extract_exif_data",
     "native_kmeans_quantize",
     "sklearn_kmeans_quantize",
