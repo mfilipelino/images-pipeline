@@ -5,20 +5,21 @@ Downloads images → Processes (EXIF/Transform) → Uploads to destination
 No metadata storage - pure processing pipeline
 """
 
-import os
 import sys
 import time
 import logging
 import argparse
-import random
 from typing import List, Optional
 from dataclasses import dataclass
 
 import boto3
-import numpy as np
-from sklearn.cluster import KMeans
 from PIL import Image
-from PIL.ExifTags import TAGS
+
+from src.images_pipeline.core.image_utils import (
+    apply_transformation,
+    calculate_dest_key,
+    extract_exif_data,
+)
 
 
 # Logging setup
@@ -74,119 +75,7 @@ class ProcessingResult:
     error: str = ""
 
 
-# Native Python K-means implementation
-def py_kmeans_quantize(img, k=8, max_iter=10):
-    """Native Python K-means quantization implementation."""
-    pixels = list(img.getdata())
-
-    # Random centroids
-    centroids = random.sample(pixels, k)
-
-    for _ in range(max_iter):
-        # Assignment step
-        clusters = {i: [] for i in range(k)}
-        for p in pixels:
-            idx = min(
-                range(k),
-                key=lambda c: sum((p[d] - centroids[c][d]) ** 2 for d in (0, 1, 2)),
-            )
-            clusters[idx].append(p)
-
-        # Update step
-        new_centroids = []
-        for i in range(k):
-            if clusters[i]:
-                sums = [sum(px[d] for px in clusters[i]) for d in (0, 1, 2)]
-                new_centroids.append(tuple(s // len(clusters[i]) for s in sums))
-            else:
-                new_centroids.append(random.choice(pixels))
-
-        if new_centroids == centroids:
-            break
-
-        centroids = new_centroids
-
-    # Produce quantized image
-    quantized = [
-        min(
-            range(k),
-            key=lambda c: sum((p[d] - centroids[c][d]) ** 2 for d in (0, 1, 2)),
-        )
-        for p in pixels
-    ]
-
-    palette = [c for centroid in centroids for c in centroid] + [0] * (768 - 3 * k)
-
-    pal_img = Image.new("P", img.size)
-    pal_img.putpalette(palette)
-    pal_img.putdata(quantized)
-
-    return pal_img.convert("RGB")
-
-
-# Scikit-learn K-means implementation
-def sklearn_kmeans_quantize(img, k=8, max_iter=10):
-    """Scikit-learn K-means quantization implementation."""
-    arr = np.array(img).reshape(-1, 3)
-
-    kmeans = KMeans(n_clusters=k, max_iter=max_iter, random_state=42).fit(arr)
-    palette = kmeans.cluster_centers_.astype(int)
-    labels = kmeans.predict(arr)
-
-    compressed = palette[labels].reshape(img.size[1], img.size[0], 3)
-    return Image.fromarray(compressed.astype("uint8"))
-
-
-# Image processing functions
-def apply_transformation(img, transformation: str, source_key: str):
-    """Apply selected image transformation."""
-    if transformation == "grayscale":
-        logger.debug(f"[{source_key}] Applying grayscale conversion.")
-        return img.convert("L")
-    elif transformation == "kmeans":
-        logger.debug(f"[{source_key}] Applying K-means clustering (scikit-learn).")
-        return sklearn_kmeans_quantize(img, k=8, max_iter=10)
-    elif transformation == "native_kmeans":
-        logger.debug(f"[{source_key}] Applying K-means clustering (native Python).")
-        return py_kmeans_quantize(img, k=8, max_iter=10)
-    else:
-        logger.debug(f"[{source_key}] No transformation applied.")
-        return img
-
-
-def extract_exif_data(image: Image.Image, source_key: str):
-    """Extract EXIF data from image (but don't save it anywhere)."""
-    logger.debug(f"[{source_key}] Extracting EXIF data.")
-    try:
-        raw_exif = image._getexif()
-        if raw_exif:
-            exif_data = {}
-            for tag_id, value in raw_exif.items():
-                tag_name = TAGS.get(tag_id, str(tag_id))
-
-                # Skip GPS data for privacy
-                if tag_name == "GPSInfo":
-                    continue
-
-                # Clean up the value
-                if isinstance(value, bytes):
-                    try:
-                        value = value.decode("utf-8", errors="replace")
-                    except Exception:
-                        value = str(value)
-                elif isinstance(value, (list, tuple)):
-                    value = str(value)
-
-                exif_data[tag_name] = str(value) if value is not None else ""
-
-            logger.debug(
-                f"[{source_key}] EXIF extracted: {len(exif_data)} fields found."
-            )
-        else:
-            logger.debug(f"[{source_key}] No EXIF data found.")
-
-    except Exception as e:
-        logger.debug(f"[{source_key}] EXIF extraction failed: {str(e)}")
+# Image processing functions now imported from core.image_utils
 
 
 def list_jpeg_files(s3_client, bucket: str, prefix: str) -> List[str]:
@@ -216,16 +105,7 @@ def list_jpeg_files(s3_client, bucket: str, prefix: str) -> List[str]:
     return files
 
 
-def calculate_dest_key(source_key: str, source_prefix: str, dest_prefix: str) -> str:
-    """Calculate destination key from source key and prefixes."""
-    if source_prefix and source_key.startswith(source_prefix):
-        relative_key = source_key[len(source_prefix) :].lstrip("/")
-    else:
-        relative_key = os.path.basename(source_key)
-
-    if dest_prefix:
-        return f"{dest_prefix.rstrip('/')}/{relative_key}"
-    return relative_key
+# calculate_dest_key function now imported from core.image_utils
 
 
 def process_single_image(
@@ -253,14 +133,16 @@ def process_single_image(
         )
 
         # Step 3: Extract EXIF (but don't save it)
-        extract_exif_data(image, item.source_key)
+        logger.debug(f"[{item.source_key}] Extracting EXIF data.")
+        exif_data = extract_exif_data(image)
+        logger.debug(f"[{item.source_key}] EXIF extracted: {len(exif_data)} fields found.")
 
         # Step 4: Apply transformation if specified
         if config.transformation:
             logger.debug(
                 f"[{item.source_key}] Applying transformation: {config.transformation}."
             )
-            image = apply_transformation(image, config.transformation, item.source_key)
+            image = apply_transformation(image, config.transformation)
 
         # Step 5: Upload to destination
         img_bytes = io.BytesIO()
