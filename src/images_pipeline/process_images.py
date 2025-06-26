@@ -76,6 +76,8 @@ def main():
         if config.debug:
             import logging
 
+            logger.setLevel(logging.DEBUG)
+            # Also set root logger for other modules
             logging.getLogger().setLevel(logging.DEBUG)
 
         # Select processor based on argument

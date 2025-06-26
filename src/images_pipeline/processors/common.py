@@ -114,7 +114,7 @@ def process_single_image(
     except Exception as e:
         result.error = str(e)
         result.success = False
-        logger.error(f"[{item.source_key}] Processing failed: {e}")
+        logger.error(f"[{item.source_key}] Processing failed: {e}", exc_info=True)
 
     return result
 
