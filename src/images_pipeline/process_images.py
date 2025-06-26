@@ -37,7 +37,7 @@ def parse_args():
         type=str,
         default=None,
         choices=["grayscale", "kmeans", "native_kmeans"],
-        help="Image transformation: 'grayscale', 'kmeans' (scikit-learn), 'native_kmeans' (pure Python)",
+        help="Image transformation: 'grayscale', 'kmeans' (scikit-learn), 'native_kmeans' (DEPRECATED)",
     )
     parser.add_argument(
         "--processor",

@@ -149,7 +149,7 @@ def log_configuration(config: ProcessingConfig, processor_name: str):
     transformation_name = "None"
     if config.transformation:
         if config.transformation == "native_kmeans":
-            transformation_name = "K-means (Native Python)"
+            transformation_name = "K-means (DEPRECATED - Native Python)"
         else:
             transformation_name = config.transformation.replace("_", " ").title()
     logger.info(f"  Transformation: {transformation_name}")

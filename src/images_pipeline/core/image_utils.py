@@ -1,6 +1,5 @@
 """Image processing utilities for the images pipeline."""
 
-import random
 from collections.abc import Iterable
 from typing import Any, Dict, TYPE_CHECKING
 
@@ -21,8 +20,11 @@ def native_kmeans_quantize(
     img: "Image.Image", k: int = 8, max_iter: int = 10
 ) -> "Image.Image":
     """
-    Native Python K-means quantization implementation.
-    Educational example of clustering without external libraries.
+    DEPRECATED: Use sklearn_kmeans_quantize instead.
+
+    This native Python implementation is kept for educational purposes only.
+    For production use, sklearn_kmeans_quantize provides better performance
+    and more robust clustering.
 
     Args:
         img: PIL Image to quantize
@@ -32,54 +34,17 @@ def native_kmeans_quantize(
     Returns:
         Quantized PIL Image
     """
-    pixels = list(img.getdata())
+    import warnings
 
-    # Initialize random centroids
-    centroids = random.sample(pixels, k)
+    warnings.warn(
+        "native_kmeans_quantize is deprecated and will be removed in a future version. "
+        "Use sklearn_kmeans_quantize or apply_transformation(img, 'kmeans') instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
-    for iteration in range(max_iter):
-        # Assignment step: assign each pixel to nearest centroid
-        clusters = {i: [] for i in range(k)}
-        for pixel in pixels:
-            distances = [
-                sum((pixel[d] - centroids[c][d]) ** 2 for d in range(3))
-                for c in range(k)
-            ]
-            closest_centroid = distances.index(min(distances))
-            clusters[closest_centroid].append(pixel)
-
-        # Update step: recalculate centroids
-        new_centroids = []
-        for i in range(k):
-            if clusters[i]:
-                # Calculate mean for each color channel
-                mean_pixel = tuple(
-                    sum(pixel[channel] for pixel in clusters[i]) // len(clusters[i])
-                    for channel in range(3)
-                )
-                new_centroids.append(mean_pixel)
-            else:
-                # Reinitialize empty cluster with random pixel
-                new_centroids.append(random.choice(pixels))
-
-        # Check for convergence
-        if new_centroids == centroids:
-            break
-        centroids = new_centroids
-
-    # Create quantized image
-    quantized_pixels = []
-    for pixel in pixels:
-        distances = [
-            sum((pixel[d] - centroids[c][d]) ** 2 for d in range(3)) for c in range(k)
-        ]
-        closest_centroid = distances.index(min(distances))
-        quantized_pixels.append(centroids[closest_centroid])
-
-    # Create new image with quantized pixels
-    quantized_img = Image.new(img.mode, img.size)
-    quantized_img.putdata(quantized_pixels)
-    return quantized_img
+    # For backward compatibility, delegate to sklearn implementation
+    return sklearn_kmeans_quantize(img, k)
 
 
 def sklearn_kmeans_quantize(img: "Image.Image", k: int = 8) -> "Image.Image":
@@ -128,6 +93,7 @@ def apply_transformation(img: "Image.Image", transformation: str) -> "Image.Imag
     Args:
         img: PIL Image to transform
         transformation: Type of transformation ("grayscale", "kmeans", "native_kmeans")
+            Note: "native_kmeans" is deprecated, use "kmeans" instead. See DEPRECATION_NOTICE.md for details.
 
     Returns:
         Transformed PIL Image
@@ -140,6 +106,7 @@ def apply_transformation(img: "Image.Image", transformation: str) -> "Image.Imag
     elif transformation == "kmeans":
         return sklearn_kmeans_quantize(img, k=8)
     elif transformation == "native_kmeans":
+        # Deprecated: will show warning and use sklearn implementation
         return native_kmeans_quantize(img, k=8)
     else:
         raise ValueError(f"Unknown transformation: {transformation}")
