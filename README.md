@@ -3,6 +3,7 @@
 > A comprehensive guide to optimizing image processing pipelines with real-world benchmarks and performance analysis
 
 ## 📋 Table of Contents
+- [Quick Start](#-quick-start)
 - [Problem Statement](#-problem-statement)
 - [Benchmark Setup](#-benchmark-setup)
 - [Initial Performance Analysis](#-initial-performance-analysis)
@@ -18,6 +19,71 @@
 - [Future Considerations](#-future-considerations)
 - [Final Answer](#-final-answer)
 - [Additional Resources](#-additional-resources)
+
+## ⚡ Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/mfilipelino/images-pipeline.git
+cd images-pipeline
+
+# Install with uv (recommended)
+uv sync
+
+# Or install with pip
+pip install -e .
+```
+
+### Usage
+
+Process images from S3 with the unified CLI:
+
+```bash
+# Basic usage - serial processing
+images-pipeline process --source-bucket my-source --dest-bucket my-dest
+
+# Use async processing for I/O-bound workloads (recommended)
+images-pipeline process \
+  --source-bucket my-source \
+  --dest-bucket my-dest \
+  --processor asyncio
+
+# Add image transformations
+images-pipeline process \
+  --source-bucket my-source \
+  --dest-bucket my-dest \
+  --processor asyncio \
+  --transformation kmeans
+
+# Process with specific prefixes
+images-pipeline process \
+  --source-bucket my-source \
+  --dest-bucket my-dest \
+  --source-prefix "input/photos/" \
+  --dest-prefix "processed/" \
+  --processor multiprocess
+
+# Show version and help
+images-pipeline version
+images-pipeline --help
+```
+
+### Available Processors
+
+| Processor | Best For | Performance |
+|-----------|----------|-------------|
+| `serial` | Small datasets, debugging | Baseline |
+| `multithread` | I/O-bound with moderate concurrency | 2-3x faster |
+| `multiprocess` | CPU-bound transformations | 2-4x faster |
+| `asyncio` | I/O-bound workloads | **10x faster** |
+
+### Available Transformations
+
+- `grayscale` - Convert to grayscale
+- `kmeans` - K-means color quantization (scikit-learn)
+- `native_kmeans` - **DEPRECATED** - Use `kmeans` instead
 
 ## 🎯 Problem Statement
 
