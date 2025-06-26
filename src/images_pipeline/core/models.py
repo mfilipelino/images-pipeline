@@ -34,13 +34,5 @@ class ProcessingResult:
     dest_key: str = ""
     success: bool = False
     error: str = ""
-    error_message: str = ""  # Alias for compatibility
     exif_data: Dict[str, Any] = field(default_factory=lambda: {})
     processing_time: float = 0.0
-
-    def __post_init__(self):
-        # Ensure backward compatibility
-        if self.error and not self.error_message:
-            self.error_message = self.error
-        elif self.error_message and not self.error:
-            self.error = self.error_message

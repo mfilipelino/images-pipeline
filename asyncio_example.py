@@ -328,7 +328,7 @@ async def process_single_image(
         )
 
     except Exception as e:
-        result.error_message = str(e)
+        result.error = str(e)
         result.processing_time = time.time() - start_time
         logger.error(f"[{source_key}] Processing failed: {e}")
 
