@@ -1,25 +1,38 @@
 """Multithreaded processor implementation - uses thread pool for parallelism."""
 
-from typing import List
+from typing import List, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Conditional import for type checking S3 client
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
+else:
+    S3Client = Any
 
 from ..core import ImageItem, ProcessingConfig, ProcessingResult
 from .common import process_single_image
 
 
 def process_batch(
-    batch: List[ImageItem], config: ProcessingConfig, s3_client
+    batch: List[ImageItem], config: ProcessingConfig, s3_client: S3Client
 ) -> List[ProcessingResult]:
     """
-    Process a batch of images using multithreading.
+    Processes a batch of images using a `ThreadPoolExecutor` for parallelism.
+
+    Each image in the batch is processed by a separate thread using the
+    `process_single_image` function from `common.py`. The provided `s3_client`
+    is shared among threads (Boto3 S3 client is generally thread-safe for
+    read operations and session-level operations if sessions are per-thread,
+    but here a single client instance is used).
 
     Args:
-        batch: List of image items to process
-        config: Processing configuration
-        s3_client: S3 client instance (thread-safe for reads)
+        batch: A list of `ImageItem` objects to process.
+        config: `ProcessingConfig` object with settings for the batch.
+        s3_client: A Boto3 S3 client instance, shared across threads.
 
     Returns:
-        List of processing results
+        A list of `ProcessingResult` objects, one for each image processed.
     """
     results = []
     max_workers = min(

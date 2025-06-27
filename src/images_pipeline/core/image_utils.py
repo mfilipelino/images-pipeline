@@ -49,14 +49,28 @@ def native_kmeans_quantize(
 
 def sklearn_kmeans_quantize(img: "Image.Image", k: int = 8) -> "Image.Image":
     """
-    Scikit-learn K-means quantization implementation.
+    Performs color quantization on an image using the K-means clustering algorithm.
+
+    The K-means algorithm works by:
+    1. Initializing `k` cluster centroids (representative colors).
+    2. Assigning each pixel in the image to the nearest cluster centroid.
+    3. Recalculating the centroids based on the mean color of the pixels assigned to them.
+    4. Repeating steps 2 and 3 until the centroids no longer change significantly or a maximum
+       number of iterations is reached.
+    The `n_init` parameter controls how many times the K-means algorithm will be run with
+    different centroid initializations. The final result will be the one with the best
+    inertia (sum of squared distances). Using `n_init='auto'` (or a specific number like 10)
+    helps in finding a more stable and optimal clustering.
+    `random_state` is used to ensure reproducibility of the results, as K-means
+    initialization can be random.
 
     Args:
-        img: PIL Image to quantize
-        k: Number of color clusters
+        img: The input PIL (Pillow) Image object to be quantized.
+        k: The desired number of color clusters (centroids) for quantization.
+           Fewer clusters mean fewer colors in the output image.
 
     Returns:
-        Quantized PIL Image
+        A new PIL Image object that has been color-quantized using K-means.
     """
     try:
         import numpy as np
@@ -69,17 +83,24 @@ def sklearn_kmeans_quantize(img: "Image.Image", k: int = 8) -> "Image.Image":
     # Convert to numpy array
     img_array = np.array(img)
 
-    # Reshape to be a list of pixels
+    # Reshape to be a list of pixels: each row is a pixel, and columns are R, G, B.
+    # The -1 infers the number of pixels based on the original image dimensions and 3 channels.
     pixels = img_array.reshape(-1, 3)
 
-    # Apply K-means clustering
+    # Apply K-means clustering.
+    # n_init=10 runs the K-means algorithm 10 times with different initial centroids
+    # and chooses the best one (lowest inertia) to avoid local optima.
+    # random_state ensures reproducibility of centroid initialization.
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
     kmeans.fit(pixels)
 
-    # Replace each pixel with its cluster center
+    # Replace each pixel with its corresponding cluster center.
+    # kmeans.labels_ is an array where each element is the cluster index for a pixel.
+    # kmeans.cluster_centers_ is an array of the actual centroid colors.
+    # This indexing effectively maps each pixel to its new quantized color.
     quantized_pixels = kmeans.cluster_centers_[kmeans.labels_]
 
-    # Reshape back to image dimensions and convert to uint8
+    # Reshape back to original image dimensions and convert to unsigned 8-bit integer type
     quantized_array = quantized_pixels.reshape(img_array.shape).astype(np.uint8)
 
     # Convert back to PIL Image
@@ -147,10 +168,12 @@ def extract_exif_data(img: "Image.Image") -> Dict[str, Any]:
             # Convert complex types to strings for JSON serialization
             if isinstance(value, bytes):
                 try:
-                    value = value.decode("utf-8")
+                    value = value.decode("utf-8")  # Attempt to decode bytes to string
                 except UnicodeDecodeError:
-                    value = str(value)
+                    value = str(value)  # If decoding fails, represent as string (e.g., "b'\\xff\\xd8'")
             elif isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
+                # Convert other iterable types (like tuples or lists of numbers) to string representations.
+                # This ensures serializability (e.g., for JSON) if EXIF data is exported.
                 value = str(value)
 
             exif_dict[str(tag)] = value

@@ -29,13 +29,14 @@ def setup_logger(
     logger = logging.getLogger(name)
 
     # Determine log level from parameter, env var, or default
+    log_level_actual: int
     if level:
-        log_level = getattr(logging, level.upper(), logging.INFO)
+        log_level_actual = getattr(logging, level.upper(), logging.INFO)
     else:
-        env_level = os.getenv("LOG_LEVEL", "INFO").upper()
-        log_level = getattr(logging, env_level, logging.INFO)
+        env_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+        log_level_actual = getattr(logging, env_level_name, logging.INFO)
 
-    logger.setLevel(log_level)
+    logger.setLevel(log_level_actual)
 
     # Avoid duplicate handlers
     if not logger.handlers:

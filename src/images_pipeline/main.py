@@ -2,13 +2,23 @@
 
 import sys
 import argparse
+from typing import Any # For S3Client if needed by process_images_main indirectly
 
 from .process_images import main as process_images_main
-
+# process_images_main is effectively:
+# Callable[[ProcessingConfig, str, Callable[[List[ImageItem], ProcessingConfig, Any], List[ProcessingResult]]], None]
+# but we are calling it with no args, relying on its internal sys.argv parsing.
 
 def main() -> None:
-    """Entry point for the unified CLI."""
-    parser = argparse.ArgumentParser(
+    """
+    Entry point for the unified command-line interface (CLI) of the Images Pipeline.
+
+    This function sets up an `ArgumentParser` to handle different commands
+    (e.g., "process", "version"). For the "process" command, it gathers
+    arguments and then reconstructs `sys.argv` to call the `main` function
+    from `process_images.py`.
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
         prog="images-pipeline",
         description="Images Pipeline - S3 Image Processing with multiple concurrency strategies",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -26,10 +36,12 @@ Examples:
         """,
     )
 
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers: argparse._SubParsersAction = parser.add_subparsers(
+        dest="command", help="Available commands"
+    )
 
     # Process subcommand
-    process_parser = subparsers.add_parser(
+    process_parser: argparse.ArgumentParser = subparsers.add_parser(
         "process", help="Process images from S3 source to destination"
     )
 
@@ -69,12 +81,21 @@ Examples:
     subparsers.add_parser("version", help="Show version information")
 
     # Parse arguments
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
     if args.command == "process":
-        # Modify sys.argv to make it compatible with process_images_main
+        # --- sys.argv Manipulation for Sub-processing ---
+        # The `process_images.py` script has its own ArgumentParser setup.
+        # To call its `main()` function (`process_images_main`) as if it were
+        # invoked from the command line with its own set of arguments, we
+        # reconstruct `sys.argv`. The first element of `sys.argv` is typically
+        # the script name, which `argparse` uses. The subsequent elements are
+        # the arguments.
+        #
+        # This approach allows `process_images.py` to remain an independent script
+        # while also being usable as a module driven by this unified CLI.
         sys.argv = [
-            "process-images",
+            "process-images",  # Dummy script name for `process_images.parse_args()`
             "--source-bucket",
             args.source_bucket,
             "--dest-bucket",

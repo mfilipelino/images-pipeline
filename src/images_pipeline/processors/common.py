@@ -2,10 +2,17 @@
 
 import io
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Callable, Any
 
 import boto3
 from PIL import Image
+
+# Conditional import for type checking S3 client
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
+else:
+    S3Client = Any
 
 from ..core import (
     ProcessingConfig,
@@ -20,8 +27,21 @@ from ..core.image_utils import (
 )
 
 
-def list_jpeg_files(s3_client, bucket: str, prefix: str) -> List[str]:
-    """List all JPEG files in S3 bucket/prefix."""
+def list_jpeg_files(s3_client: S3Client, bucket: str, prefix: str) -> List[str]:
+    """
+    Lists all JPEG files ('.jpg', '.jpeg') in a specified S3 bucket and prefix.
+
+    Args:
+        s3_client: A Boto3 S3 client instance.
+        bucket: The name of the S3 bucket.
+        prefix: The S3 prefix (folder) to search within.
+
+    Returns:
+        A list of S3 keys for the found JPEG files.
+
+    Raises:
+        Exception: If there's an error listing files from S3.
+    """
     logger = get_logger("processor")
     files = []
 
@@ -49,9 +69,20 @@ def list_jpeg_files(s3_client, bucket: str, prefix: str) -> List[str]:
 
 
 def process_single_image(
-    s3_client, item: ImageItem, config: ProcessingConfig
+    s3_client: S3Client, item: ImageItem, config: ProcessingConfig
 ) -> ProcessingResult:
-    """Process a single image: Download → EXIF → Transform → Upload."""
+    """
+    Processes a single image: downloads from S3, extracts EXIF data,
+    applies an optional transformation, and uploads the result to S3.
+
+    Args:
+        s3_client: A Boto3 S3 client instance.
+        item: An `ImageItem` dataclass instance containing source and destination keys.
+        config: A `ProcessingConfig` dataclass instance with processing settings.
+
+    Returns:
+        A `ProcessingResult` dataclass instance with the outcome of the processing.
+    """
     logger = get_logger("processor")
     result = ProcessingResult(source_key=item.source_key, dest_key=item.dest_key)
 
@@ -180,15 +211,17 @@ def log_batch_progress(
     batch_size: int,
     total_items: int,
     batch_time: float,
-    processed_count: int,
-    error_count: int,
+    processed_count: int, # Cumulative processed count up to this batch
+    error_count: int,   # Cumulative error count up to this batch
     config: ProcessingConfig,
 ):
     """Log progress for batch processing."""
     logger = get_logger("processor")
-    total_processed = batch_index + batch_size
-    progress = (total_processed / total_items) * 100
-    rate = batch_size / batch_time if batch_time > 0 else 0
+    # Calculate how many items have been processed so far in total (including current batch)
+    # batch_index is the 0-based index of the first item in the current batch.
+    items_processed_so_far = batch_index + batch_size
+    progress = (items_processed_so_far / total_items) * 100
+    rate = batch_size / batch_time if batch_time > 0 else 0  # Items per second for current batch
 
     operation_details = ["EXIF"]
     if config.transformation:
@@ -199,19 +232,19 @@ def log_batch_progress(
     operation_str = " + ".join(operation_details)
 
     logger.info(
-        f"Progress: {total_processed}/{total_items} ({progress:.1f}%) - "
-        f"Rate: {rate:.1f} items/sec ({operation_str}) - "
-        f"Success: {processed_count}, Errors: {error_count}"
+        f"Progress: {items_processed_so_far}/{total_items} ({progress:.1f}%) - "
+        f"Batch Rate: {rate:.1f} items/sec ({operation_str}) - "
+        f"Cumulative Success: {processed_count}, Cumulative Errors: {error_count}"
     )
 
 
-def discover_and_validate_files(s3_client, config: ProcessingConfig) -> List[str]:
+def discover_and_validate_files(s3_client: S3Client, config: ProcessingConfig) -> List[str]:
     """
-    Discover and validate JPEG files to process.
+    Discovers and validates JPEG files to process from the source S3 location.
 
     Args:
-        s3_client: S3 client instance
-        config: Processing configuration
+        s3_client: A Boto3 S3 client instance.
+        config: `ProcessingConfig` object with source bucket and prefix.
 
     Returns:
         List of source file keys
@@ -258,20 +291,29 @@ def count_batch_results(results: List[ProcessingResult]) -> Tuple[int, int]:
 def process_all_batches(
     work_items: List[ImageItem],
     config: ProcessingConfig,
-    s3_client,
-    process_batch_fn,
+    s3_client: S3Client,
+    process_batch_fn: Callable[
+        [List[ImageItem], ProcessingConfig, S3Client], List[ProcessingResult]
+    ],
 ) -> Tuple[int, int]:
     """
-    Process all work items in batches.
+    Processes all work items in batches using the provided batch processing function.
+
+    It iterates through the `work_items`, creates batches of `config.batch_size`,
+    and calls `process_batch_fn` for each batch. It logs progress and
+    accumulates total processed and error counts.
 
     Args:
-        work_items: List of items to process
-        config: Processing configuration
-        s3_client: S3 client instance
-        process_batch_fn: Function to process a batch of items
+        work_items: A list of `ImageItem` objects to be processed.
+        config: `ProcessingConfig` object with settings like batch size.
+        s3_client: A Boto3 S3 client instance, passed to `process_batch_fn`.
+        process_batch_fn: A callable function that takes a batch of `ImageItem`s,
+                          the `ProcessingConfig`, and an `S3Client`, and returns
+                          a list of `ProcessingResult`s.
 
     Returns:
-        Tuple of (total_processed_count, total_error_count)
+        A tuple containing the total number of successfully processed items
+        and the total number of items that resulted in errors.
     """
     total_processed = 0
     total_errors = 0
@@ -306,15 +348,25 @@ def process_all_batches(
 def run_processing(
     config: ProcessingConfig,
     processor_name: str,
-    process_batch_fn,
+    process_batch_fn: Callable[
+        [List[ImageItem], ProcessingConfig, S3Client], List[ProcessingResult]
+    ],
 ) -> None:
     """
-    Main processing function that orchestrates the workflow.
+    Main orchestrator for the image processing workflow.
+
+    This function initializes logging, creates an S3 client, discovers files,
+    creates work items, and then processes them in batches using the
+    provided `process_batch_fn`. It logs configuration, progress, and
+    final statistics.
 
     Args:
-        config: Processing configuration
-        processor_name: Name of the processor for logging
-        process_batch_fn: Function to process a batch of items
+        config: `ProcessingConfig` object with all settings for the job.
+        processor_name: A string name for the processor being used (e.g., "Serial",
+                        "Multithread"), used for logging.
+        process_batch_fn: A callable function responsible for processing a single
+                          batch of images. It must match the signature:
+                          `(batch: List[ImageItem], config: ProcessingConfig, s3_client: S3Client) -> List[ProcessingResult]`.
     """
     log_configuration(config, processor_name)
     start_time = time.time()
