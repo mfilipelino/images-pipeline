@@ -11,6 +11,17 @@ from images_pipeline.core.image_utils import (
     native_kmeans_quantize,
 )
 
+# Attempt to import PIL and numpy for test data creation
+try:
+    from PIL import Image
+except ImportError:
+    Image = None  # Fallback if PIL is not available
+
+try:
+    import numpy as np
+except ImportError:
+    np = None  # Fallback if numpy is not available
+
 
 class TestCalculateDestKey:
     """Tests for calculate_dest_key function."""
@@ -266,6 +277,27 @@ class TestExtractExifData:
         expected = {"width": 800, "height": 600, "format": "PNG", "mode": "RGB"}
         assert result == expected
 
+    def test_extract_exif_data_corrupted_exif(self):
+        """Test extract_exif_data when _getexif raises an exception."""
+        mock_img = Mock()
+        mock_img.width = 1920
+        mock_img.height = 1080
+        mock_img.format = "JPEG"
+        mock_img.mode = "RGB"
+        mock_img._getexif.side_effect = Exception("EXIF Read Error")
+
+        result = extract_exif_data(mock_img)
+
+        # Should still return basic info
+        assert result["width"] == 1920
+        assert result["height"] == 1080
+        assert result["format"] == "JPEG"
+        assert result["mode"] == "RGB"
+
+        # EXIF part should be minimal or empty, not crash
+        # Check that no other keys (from EXIF) are present other than the basic ones
+        assert len(result.keys()) == 4
+
 
 class TestApplyTransformation:
     """Tests for apply_transformation function."""
@@ -333,6 +365,68 @@ class TestSklearnKmeansQuantize:
             ):
                 # Call the actual function, which should now raise an ImportError
                 sklearn_kmeans_quantize(Mock())
+
+    @patch('images_pipeline.core.image_utils.KMeans')
+    @patch('images_pipeline.core.image_utils.Image.fromarray')
+    @patch('images_pipeline.core.image_utils.np.array')
+    def test_sklearn_kmeans_quantize_produces_image(
+        self, mock_np_array, mock_image_fromarray, mock_kmeans_constructor
+    ):
+        """Test sklearn_kmeans_quantize core logic with mocks."""
+        if np is None or Image is None:
+            pytest.skip("numpy or Pillow not available for this test")
+
+        mock_input_img = Mock(spec=Image.Image if Image else object)
+        mock_input_img.size = (2, 2) # Keep it small for easy array definition
+        mock_input_img.mode = "RGB"
+
+        # Define a simple 2x2 RGB image array
+        # Pixels: (0,0,0), (1,1,1), (2,2,2), (3,3,3)
+        image_array = np.array(
+            [[[0, 0, 0], [1, 1, 1]],
+             [[2, 2, 2], [3, 3, 3]]], dtype=np.uint8
+        )
+        mock_np_array.return_value = image_array # This is when np.array(img) is called
+
+        mock_output_img = Mock(spec=Image.Image if Image else object)
+        mock_image_fromarray.return_value = mock_output_img
+
+        mock_kmeans_instance = Mock()
+        # For k=2, let's say cluster centers are black and a mid-gray
+        mock_kmeans_instance.cluster_centers_ = np.array(
+            [[0, 0, 0], [128, 128, 128]], dtype=np.uint8
+        )
+        # Labels for the 4 pixels (0,0,0), (1,1,1), (2,2,2), (3,3,3)
+        # e.g., first two go to cluster 0, next two to cluster 1
+        mock_kmeans_instance.labels_ = np.array([0, 0, 1, 1])
+        mock_kmeans_constructor.return_value = mock_kmeans_instance
+
+        k_clusters = 2
+        result_img = sklearn_kmeans_quantize(mock_input_img, k=k_clusters)
+
+        # Assert that numpy.array was called to convert PIL image to numpy array
+        mock_np_array.assert_called_once_with(mock_input_img)
+
+        # Assert KMeans was initialized correctly
+        mock_kmeans_constructor.assert_called_once_with(
+            n_clusters=k_clusters, random_state=42, n_init=10 # or 'auto' if version changes
+        )
+
+        # Assert fit was called on the reshaped pixel data
+        # image_array.reshape(-1, 3) would be:
+        # [[0,0,0], [1,1,1], [2,2,2], [3,3,3]]
+        expected_pixels_for_fit = image_array.reshape(-1, 3)
+        mock_kmeans_instance.fit.assert_called_once()
+        # Check the argument passed to fit (it's the first positional argument)
+        # Using np.array_equal for comparing numpy arrays
+        assert np.array_equal(mock_kmeans_instance.fit.call_args[0][0], expected_pixels_for_fit)
+
+
+        # Assert Image.fromarray was called (details of array can be complex, so just check call)
+        mock_image_fromarray.assert_called_once()
+
+        # Assert the result is the mock output image
+        assert result_img == mock_output_img
 
 
 class TestNativeKmeansQuantize:
