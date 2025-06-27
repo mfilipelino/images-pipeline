@@ -12,6 +12,8 @@ from ..core import (
     ProcessingConfig,
     ImageItem,
     ProcessingResult,
+    ImageProcessingError,
+    with_error_handling,
     get_logger,
 )
 from ..core.image_utils import (
@@ -310,6 +312,7 @@ def process_all_batches(
     return total_processed, total_errors
 
 
+@with_error_handling
 def run_processing(
     config: ProcessingConfig,
     processor_name: str,
@@ -353,7 +356,7 @@ def run_processing(
         total_time = time.time() - start_time
         log_final_statistics(total_time, len(work_items), processed_count, error_count)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger = get_logger("processor")
         logger.error(f"Fatal error in processing: {e}", exc_info=True)
-        raise
+        raise ImageProcessingError(str(e)) from e
