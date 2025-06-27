@@ -5,7 +5,7 @@ import time
 from typing import List, Tuple
 
 import boto3
-from PIL import Image
+from PIL import Image, UnidentifiedImageError as PILUnidentifiedImageError
 
 from ..core import (
     ProcessingConfig,
@@ -13,6 +13,8 @@ from ..core import (
     ProcessingResult,
     get_logger,
 )
+from ..core.exceptions import ImageProcessingError, S3Error, ConfigurationError
+from ..core.error_handling import with_error_handling, retry_s3_operation, BatchOperationContextManager
 from ..core.image_utils import (
     apply_transformation,
     calculate_dest_key,
@@ -20,34 +22,57 @@ from ..core.image_utils import (
 )
 
 
+@retry_s3_operation()
+@with_error_handling
+# @with_error_handling might be redundant if @retry_s3_operation already relies on S3Error from it,
+# but it ensures any other unexpected error in the s3_client call itself is also standardized.
+# The @with_error_handling decorator will turn BotocoreClientError into S3Error, which @retry_s3_operation expects.
+def _download_s3_object(s3_client, bucket: str, key: str, source_key_for_logging: str) -> bytes:
+    logger = get_logger("processor") # Assuming get_logger is available
+    logger.debug(f"[{source_key_for_logging}] Downloading from s3://{bucket}/{key}")
+    response = s3_client.get_object(Bucket=bucket, Key=key)
+    return response["Body"].read()
+
+@retry_s3_operation()
+@with_error_handling
+def _upload_s3_object(s3_client, bucket: str, key: str, data: bytes, content_type: str, source_key_for_logging: str):
+    logger = get_logger("processor")
+    logger.debug(f"[{source_key_for_logging}] Uploading to s3://{bucket}/{key}")
+    s3_client.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=data,
+        ContentType=content_type
+    )
+
+@retry_s3_operation()
+@with_error_handling
 def list_jpeg_files(s3_client, bucket: str, prefix: str) -> List[str]:
     """List all JPEG files in S3 bucket/prefix."""
     logger = get_logger("processor")
     files = []
-
     list_prefix = prefix
     if prefix and not prefix.endswith("/"):
         list_prefix = prefix + "/"
 
     logger.debug(f"Listing JPEG files in s3://{bucket}/{list_prefix}")
-    try:
-        paginator = s3_client.get_paginator("list_objects_v2")
-
-        for page in paginator.paginate(Bucket=bucket, Prefix=list_prefix):
-            for obj in page.get("Contents", []):
-                key = obj["Key"]
-                # Only process JPEG files
-                if key.lower().endswith((".jpg", ".jpeg")) and not key.endswith("/"):
-                    files.append(key)
-
-        logger.info(f"Found {len(files)} JPEG files in s3://{bucket}/{list_prefix}")
-    except Exception as e:
-        logger.error(f"Error listing files in s3://{bucket}/{prefix}: {e}")
-        raise
-
+    # Removed try/except, relying on decorators
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=list_prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if key.lower().endswith((".jpg", ".jpeg")) and not key.endswith("/"):
+                files.append(key)
+    logger.info(f"Found {len(files)} JPEG files in s3://{bucket}/{list_prefix}")
+    if not files:
+        logger.warning(f"No JPEG files found in s3://{bucket}/{list_prefix} after listing.")
+        # Consider if this should be an error or just an empty list.
+        # The original discover_and_validate_files raises ValueError if no files found.
+        # This function's role is just to list.
     return files
 
 
+@with_error_handling # General wrapper for any other unexpected errors
 def process_single_image(
     s3_client, item: ImageItem, config: ProcessingConfig
 ) -> ProcessingResult:
@@ -56,65 +81,71 @@ def process_single_image(
     result = ProcessingResult(source_key=item.source_key, dest_key=item.dest_key)
 
     try:
-        # Step 1: Download image
-        logger.debug(f"[{item.source_key}] Downloading image.")
-        response = s3_client.get_object(
-            Bucket=config.source_bucket, Key=item.source_key
-        )
-        image_bytes = response["Body"].read()
-
-        # Step 2: Load image
-        image_stream = io.BytesIO(image_bytes)
-        image = Image.open(image_stream)
-        image.load()
-        logger.debug(
-            f"[{item.source_key}] Image loaded. Size: {image.size[0]}x{image.size[1]}."
+        # Step 1: Download image using the new helper
+        image_bytes = _download_s3_object(
+            s3_client, config.source_bucket, item.source_key, item.source_key
         )
 
-        # Step 3: Extract EXIF (but don't save it)
-        logger.debug(f"[{item.source_key}] Extracting EXIF data.")
-        exif_data = extract_exif_data(image)
-        logger.debug(
-            f"[{item.source_key}] EXIF extracted: {len(exif_data)} fields found."
-        )
-
-        # Step 4: Apply transformation if specified
-        if config.transformation:
+        # Step 2: Load image & Step 3: Extract EXIF & Step 4: Apply transformation
+        try:
+            image_stream = io.BytesIO(image_bytes)
+            image = Image.open(image_stream)
+            image.load() # Ensure image data is loaded
             logger.debug(
-                f"[{item.source_key}] Applying transformation: {config.transformation}."
+                f"[{item.source_key}] Image loaded. Size: {image.size[0]}x{image.size[1]}."
             )
-            image = apply_transformation(image, config.transformation)
 
-        # Step 5: Upload to destination
-        img_bytes = io.BytesIO()
+            logger.debug(f"[{item.source_key}] Extracting EXIF data.")
+            extract_exif_data(image) # Assuming this doesn't need specific error handling beyond what @with_error_handling on this func provides
+                                     # Or if extract_exif_data itself is decorated.
 
-        # Determine format based on original file extension
+            if config.transformation:
+                logger.debug(
+                    f"[{item.source_key}] Applying transformation: {config.transformation}."
+                )
+                # apply_transformation will be refactored later to raise ImageProcessingError
+                image = apply_transformation(image, config.transformation)
+
+        except (IOError, SyntaxError, Image.DecompressionBombError, PILUnidentifiedImageError) as img_err:
+            # Catching common PIL errors explicitly, plus PILUnidentifiedImageError.
+            # SyntaxError can happen with malformed image files.
+            logger.error(f"[{item.source_key}] Image loading/processing failed: {img_err}", exc_info=True)
+            raise ImageProcessingError(f"Image loading/processing error for {item.source_key}: {img_err}") from img_err
+
+
+        # Step 5: Upload to destination using the new helper
+        img_bytes_to_upload = io.BytesIO()
         file_ext = item.source_key.lower().split(".")[-1]
-        if file_ext in ["jpg", "jpeg"]:
-            format_type = "JPEG"
-        elif file_ext == "png":
-            format_type = "PNG"
-        else:
-            format_type = "JPEG"
+        format_type = "JPEG" if file_ext in ["jpg", "jpeg"] else "PNG" # Simplified
 
-        image.save(img_bytes, format=format_type, quality=95)
-        img_bytes.seek(0)
+        image.save(img_bytes_to_upload, format=format_type, quality=95)
+        img_bytes_to_upload.seek(0)
 
-        logger.debug(f"[{item.source_key}] Uploading to {item.dest_key}.")
-        s3_client.put_object(
-            Bucket=config.dest_bucket,
-            Key=item.dest_key,
-            Body=img_bytes.getvalue(),
-            ContentType=f"image/{file_ext}",
+        _upload_s3_object(
+            s3_client,
+            config.dest_bucket,
+            item.dest_key,
+            img_bytes_to_upload.getvalue(),
+            f"image/{file_ext}", # Corrected ContentType
+            item.source_key
         )
 
         result.success = True
         logger.debug(f"[{item.source_key}] Processing completed successfully.")
 
-    except Exception as e:
+    # Catch specific custom exceptions first, then broader ones if necessary
+    except (S3Error, ImageProcessingError) as e: # Catch errors from helpers or image processing block
         result.error = str(e)
         result.success = False
-        logger.error(f"[{item.source_key}] Processing failed: {e}", exc_info=True)
+        # The logger in @with_error_handling for _download/_upload or for process_single_image itself,
+        # or the logger in the image processing try-except block above would have already logged details.
+        # So, here we just log the fact that this specific item failed at a higher level.
+        logger.error(f"[{item.source_key}] Failed processing due to {type(e).__name__}: {e}")
+
+    # The @with_error_handling on process_single_image will catch any other Exception
+    # and log it, then re-raise it. If it's a non-custom error,
+    # it might propagate up and be caught by run_processing's main try-catch.
+    # The goal of this specific try-except is to populate ProcessingResult correctly.
 
     return result
 
@@ -259,92 +290,108 @@ def process_all_batches(
     work_items: List[ImageItem],
     config: ProcessingConfig,
     s3_client,
-    process_batch_fn,
+    process_batch_fn, # e.g. serial_process_batch, multithread_process_batch
+    processor_name_for_logging: str
 ) -> Tuple[int, int]:
-    """
-    Process all work items in batches.
+    logger = get_logger("processor") # Ensure logger is available
+    total_processed_items = 0
+    total_error_items = 0
+    # Use a more descriptive name for the operation if possible
+    operation_display_name = f"Image Batch Processing via {processor_name_for_logging}"
 
-    Args:
-        work_items: List of items to process
-        config: Processing configuration
-        s3_client: S3 client instance
-        process_batch_fn: Function to process a batch of items
+    with BatchOperationContextManager(operation_name=operation_display_name) as batch_manager:
+        num_batches = (len(work_items) + config.batch_size - 1) // config.batch_size
+        logger.info(f"Starting processing of {len(work_items)} items in {num_batches} batches.")
 
-    Returns:
-        Tuple of (total_processed_count, total_error_count)
-    """
-    total_processed = 0
-    total_errors = 0
+        for i in range(0, len(work_items), config.batch_size):
+            batch_items = work_items[i : i + config.batch_size]
+            current_batch_number = (i // config.batch_size) + 1
+            logger.info(f"Processing batch {current_batch_number}/{num_batches} with {len(batch_items)} items.")
+            batch_start_time = time.time()
 
-    for i in range(0, len(work_items), config.batch_size):
-        batch = work_items[i : i + config.batch_size]
-        batch_start_time = time.time()
+            # results is List[ProcessingResult]
+            # process_batch_fn is, for example, serial_process_batch,
+            # which calls process_single_image for each item in batch_items
+            current_batch_results = process_batch_fn(batch_items, config, s3_client)
 
-        # Process batch using provided function
-        results = process_batch_fn(batch, config, s3_client)
+            batch_success_count = 0
+            batch_fail_count = 0
+            for res_item in current_batch_results:
+                if res_item.success:
+                    batch_success_count += 1
+                else:
+                    batch_fail_count += 1
+                    # Ensure res_item.error has a meaningful message from process_single_image
+                    error_msg_to_log = res_item.error if res_item.error else "Unknown error"
+                    batch_manager.add_error(item_identifier=res_item.source_key, error_message=error_msg_to_log)
 
-        # Count results for this batch
-        batch_processed, batch_errors = count_batch_results(results)
-        total_processed += batch_processed
-        total_errors += batch_errors
+            total_processed_items += batch_success_count # These are successfully processed items
+            total_error_items += batch_fail_count
 
-        # Progress reporting
-        batch_time = time.time() - batch_start_time
-        log_batch_progress(
-            i,
-            len(batch),
-            len(work_items),
-            batch_time,
-            total_processed,
-            total_errors,
-            config,
-        )
+            batch_duration = time.time() - batch_start_time
+            # log_batch_progress logs cumulative success and errors so far
+            log_batch_progress(
+                i, # Start index of the batch for progress calculation
+                len(batch_items),
+                len(work_items),
+                batch_duration,
+                total_processed_items,
+                total_error_items,
+                config,
+            )
+            if batch_fail_count > 0:
+                logger.info(f"Batch {current_batch_number}/{num_batches} summary: {batch_success_count} succeeded, {batch_fail_count} failed.")
+            else:
+                logger.info(f"Batch {current_batch_number}/{num_batches} summary: {batch_success_count} succeeded.")
 
-    return total_processed, total_errors
+
+    if total_error_items > 0:
+        logger.warning(f"Completed all batches. Total items processed successfully: {total_processed_items}. Total errors: {total_error_items}.")
+    else:
+        logger.info(f"Completed all batches successfully. Total items processed: {total_processed_items}.")
+
+    return total_processed_items, total_error_items
 
 
 def run_processing(
     config: ProcessingConfig,
     processor_name: str,
-    process_batch_fn,
+    process_batch_fn, # This is the function like serial_process_batch, etc.
 ) -> None:
-    """
-    Main processing function that orchestrates the workflow.
-
-    Args:
-        config: Processing configuration
-        processor_name: Name of the processor for logging
-        process_batch_fn: Function to process a batch of items
-    """
+    logger = get_logger("processor") # Moved logger to the top
     log_configuration(config, processor_name)
     start_time = time.time()
 
     try:
-        # Create S3 client
         session = boto3.Session()
         s3_client = session.client("s3")
 
-        # Discover and validate files
-        try:
-            source_files = discover_and_validate_files(s3_client, config)
-        except ValueError:
-            return  # No files found, exit gracefully
+        # discover_and_validate_files itself raises ValueError if no files, handled below
+        source_files = discover_and_validate_files(s3_client, config)
+        if not source_files: # Defensive check, though discover_and_validate_files should raise
+            logger.info("No JPEG files found. Exiting.") # Should be caught by ValueError below
+            return
 
-        # Create work items
         work_items = create_work_items(source_files, config)
-        logger = get_logger("processor")
-        logger.info(f"Processing {len(work_items)} images...")
+        logger.info(f"Processing {len(work_items)} images using {processor_name}...")
 
-        # Process all batches
+        # Call the refactored process_all_batches
         processed_count, error_count = process_all_batches(
-            work_items, config, s3_client, process_batch_fn
+            work_items, config, s3_client, process_batch_fn, processor_name
         )
 
-        # Final statistics
         total_time = time.time() - start_time
         log_final_statistics(total_time, len(work_items), processed_count, error_count)
 
-    except Exception as e:
-        logger = get_logger("processor")
-        logger.error(f"Fatal error in processing: {e}", exc_info=True)
-        raise
+    except ValueError as ve: # Specifically from discover_and_validate_files
+        logger.warning(f"Validation error: {ve}. Processing halted.")
+        # No sys.exit(1) here, let main handle exit codes based on exceptions.
+        # Or re-raise as ConfigurationError if appropriate for no files.
+        # For now, matching existing behavior of returning.
+        return
+    except (S3Error, ImageProcessingError, ConfigurationError) as app_err:
+        logger.error(f"Critical application error in {processor_name} processing: {app_err}", exc_info=True)
+        raise # Re-raise for main to handle exit
+    except Exception as e: # Catch-all for truly unexpected
+        logger.error(f"Fatal unexpected error in {processor_name} processing: {e}", exc_info=True)
+        raise # Re-raise for main to handle exit

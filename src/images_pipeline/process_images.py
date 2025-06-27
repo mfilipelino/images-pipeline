@@ -10,6 +10,7 @@ import sys
 import argparse
 
 from .core import ProcessingConfig, get_logger
+from .core.exceptions import ImageProcessingError, S3Error, ConfigurationError
 from .processors.common import run_processing
 from .processors import (
     serial_process_batch,
@@ -56,12 +57,13 @@ def parse_args():
 
 def main():
     """Main entry point."""
+    logger = get_logger("processor") # Use existing logger name from this file
     try:
-        logger = get_logger("processor")
+        # ... [existing code for parsing args, setting up config, logger level, selecting processor] ...
+        # This part remains the same:
         logger.info("Starting S3 Image Processor")
         args = parse_args()
 
-        # Initialize config
         config = ProcessingConfig(
             source_bucket=args.source_bucket,
             dest_bucket=args.dest_bucket,
@@ -72,33 +74,37 @@ def main():
             batch_size=args.batch_size,
         )
 
-        # Set debug logging if requested
         if config.debug:
-            import logging
+            import logging as py_logging
+            logger.setLevel(py_logging.DEBUG)
+            py_logging.getLogger().setLevel(py_logging.DEBUG)
 
-            logger.setLevel(logging.DEBUG)
-            # Also set root logger for other modules
-            logging.getLogger().setLevel(logging.DEBUG)
-
-        # Select processor based on argument
         processors = {
             "serial": ("Serial", serial_process_batch),
             "multithread": ("Multithreaded", multithread_process_batch),
             "multiprocess": ("Multiprocess", multiprocess_process_batch),
             "asyncio": ("AsyncIO", asyncio_process_batch),
         }
-
         processor_name, process_batch_fn = processors[args.processor]
+        # End of existing unchanged code within try block
 
-        # Run processing with selected strategy
         run_processing(config, processor_name, process_batch_fn)
+        logger.info("S3 Image Processor finished successfully.") # Add this line
 
     except KeyboardInterrupt:
-        logger = get_logger("processor")
-        logger.warning("Processing interrupted by user.")
+        logger.warning("Processing interrupted by user. Exiting.")
+        sys.exit(130)
+    except ConfigurationError as ce:
+        logger.error(f"Configuration error: {ce}", exc_info=True)
+        sys.exit(2)
+    except S3Error as s3e:
+        logger.error(f"S3 operation failed: {s3e}", exc_info=True)
+        sys.exit(3)
+    except ImageProcessingError as ipe:
+        logger.error(f"Image processing error: {ipe}", exc_info=True)
+        sys.exit(4)
     except Exception as e:
-        logger = get_logger("processor")
-        logger.error(f"Processing failed: {e}", exc_info=True)
+        logger.error(f"Processing failed due to an unexpected error: {e}", exc_info=True)
         sys.exit(1)
 
 
