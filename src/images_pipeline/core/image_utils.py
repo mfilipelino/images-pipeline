@@ -1,5 +1,6 @@
 """Image processing utilities for the images pipeline."""
 
+from .error_handling import with_error_handling
 from collections.abc import Iterable
 from typing import Any, Dict, TYPE_CHECKING
 
@@ -47,6 +48,7 @@ def native_kmeans_quantize(
     return sklearn_kmeans_quantize(img, k)
 
 
+@with_error_handling
 def sklearn_kmeans_quantize(img: "Image.Image", k: int = 8) -> "Image.Image":
     """
     Scikit-learn K-means quantization implementation.
@@ -86,6 +88,7 @@ def sklearn_kmeans_quantize(img: "Image.Image", k: int = 8) -> "Image.Image":
     return Image.fromarray(quantized_array)
 
 
+@with_error_handling
 def apply_transformation(img: "Image.Image", transformation: str) -> "Image.Image":
     """
     Apply the specified transformation to an image.
