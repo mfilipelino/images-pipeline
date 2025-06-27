@@ -208,7 +208,9 @@ def log_batch_progress(
     )
 
 
-def discover_and_validate_files(s3_client: S3Client, config: ProcessingConfig) -> List[str]:
+def discover_and_validate_files(
+    s3_client: S3Client, config: ProcessingConfig
+) -> List[str]:
     """
     Discover and validate JPEG files to process.
 
@@ -262,7 +264,9 @@ def process_all_batches(
     work_items: List[ImageItem],
     config: ProcessingConfig,
     s3_client: S3Client,
-    process_batch_fn: Callable[[List[ImageItem], ProcessingConfig, S3Client], List[ProcessingResult]],
+    process_batch_fn: Callable[
+        [List[ImageItem], ProcessingConfig, S3Client], List[ProcessingResult]
+    ],
 ) -> Tuple[int, int]:
     """
     Process all work items in batches.
@@ -309,7 +313,9 @@ def process_all_batches(
 def run_processing(
     config: ProcessingConfig,
     processor_name: str,
-    process_batch_fn: Callable[[List[ImageItem], ProcessingConfig, S3Client], List[ProcessingResult]],
+    process_batch_fn: Callable[
+        [List[ImageItem], ProcessingConfig, S3Client], List[ProcessingResult]
+    ],
 ) -> None:
     """
     Main processing function that orchestrates the workflow.

@@ -20,7 +20,9 @@ from ..core.image_utils import (
 )
 
 
-def process_single_image_worker(args: Tuple[str, str, ProcessingConfig]) -> ProcessingResult:
+def process_single_image_worker(
+    args: Tuple[str, str, ProcessingConfig],
+) -> ProcessingResult:
     """
     Worker function for multiprocessing.
     Takes a tuple of (source_key, config) to work with multiprocessing.map.
