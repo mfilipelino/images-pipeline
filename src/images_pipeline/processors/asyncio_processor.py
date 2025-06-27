@@ -2,10 +2,18 @@
 
 import asyncio
 import io
-from typing import List
+from typing import List, Any
 
 import aioboto3
 from PIL import Image
+# Conditional import for type checking S3 client
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client as AioS3Client  # For aioboto3
+    from mypy_boto3_s3.client import S3Client # For boto3
+else:
+    AioS3Client = Any
+    S3Client = Any
 
 from ..core import (
     ImageItem,
@@ -20,9 +28,12 @@ from ..core.image_utils import (
 
 
 async def process_single_image_async(
-    s3_client, item: ImageItem, config: ProcessingConfig
+    s3_client: AioS3Client, item: ImageItem, config: ProcessingConfig
 ) -> ProcessingResult:
-    """Process a single image asynchronously."""
+    """
+    Downloads, processes (EXIF extraction and optional transformation),
+    and uploads a single image asynchronously using aioboto3.
+    """
     logger = get_logger("asyncio-processor")
     result = ProcessingResult(source_key=item.source_key, dest_key=item.dest_key)
 
@@ -33,10 +44,16 @@ async def process_single_image_async(
             Bucket=config.source_bucket, Key=item.source_key
         )
 
-        async with response["Body"] as stream:
-            image_bytes = await stream.read()
+    async with response["Body"] as stream:  # response["Body"] is an AiobotocoreStreamingBody
+        image_bytes = await stream.read()   # Asynchronously read all bytes from the S3 object stream
 
-        # Step 2: Load and process image (CPU-bound, but we're doing it anyway)
+    # Step 2: Load and process image.
+    # Note: Image.open and image.load are synchronous PIL operations.
+    # For a truly non-blocking pipeline with CPU-bound image processing,
+    # this would typically be run in a separate thread or process pool
+    # using `asyncio.to_thread` (Python 3.9+) or `loop.run_in_executor`.
+    # However, for this example, it's kept simple, and the primary async benefit
+    # comes from concurrent S3 I/O operations.
         image_stream = io.BytesIO(image_bytes)
         image = Image.open(image_stream)
         image.load()
@@ -91,14 +108,20 @@ async def process_batch_async(
     """Process a batch of images asynchronously using shared S3 client."""
     # Create shared S3 session and client
     session = aioboto3.Session()
-    async with session.client("s3") as s3_client:
-        # Process all items concurrently
+    async with session.client("s3") as s3_client: # Create an S3 client session for this batch
+        # Create a list of asyncio tasks, one for each image to be processed.
+        # Each task will run the `process_single_image_async` coroutine.
         tasks = [process_single_image_async(s3_client, item, config) for item in batch]
 
-        # Wait for all tasks to complete
+        # Wait for all tasks to complete.
+        # `asyncio.gather` runs all tasks concurrently.
+        # `return_exceptions=True` means that if a task raises an exception,
+        # the exception itself is returned as a result, rather than
+        # `gather` immediately raising the first encountered exception.
+        # This allows us to collect all results, whether successful or errors.
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Convert exceptions to ProcessingResult objects
+        # Convert exceptions to ProcessingResult objects for consistent result handling
         processed_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
@@ -117,20 +140,22 @@ async def process_batch_async(
 
 
 def process_batch(
-    batch: List[ImageItem], config: ProcessingConfig, s3_client
+    batch: List[ImageItem], config: ProcessingConfig, s3_client: S3Client  # s3_client is unused
 ) -> List[ProcessingResult]:
     """
     Process a batch of images using asyncio.
 
-    This is the synchronous wrapper that runs the async function.
+    This is the synchronous wrapper that runs the asynchronous
+    `process_batch_async` function.
 
     Args:
-        batch: List of image items to process
-        config: Processing configuration
-        s3_client: S3 client instance (not used in async version)
+        batch: A list of `ImageItem` objects to process.
+        config: `ProcessingConfig` object with settings for the batch.
+        s3_client: A Boto3 S3 client instance (currently unused in this asyncio wrapper,
+                   as `process_batch_async` creates its own aioboto3 client).
 
     Returns:
-        List of processing results
+        A list of `ProcessingResult` objects, one for each image processed.
     """
     # Run the async function in an event loop
     return asyncio.run(process_batch_async(batch, config))

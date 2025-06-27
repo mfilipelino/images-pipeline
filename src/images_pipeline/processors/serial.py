@@ -1,24 +1,34 @@
 """Serial processor implementation - processes images one by one."""
 
-from typing import List
+from typing import List, Any
+
+# Conditional import for type checking S3 client
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
+else:
+    S3Client = Any
 
 from ..core import ImageItem, ProcessingConfig, ProcessingResult
 from .common import process_single_image
 
 
 def process_batch(
-    batch: List[ImageItem], config: ProcessingConfig, s3_client
+    batch: List[ImageItem], config: ProcessingConfig, s3_client: S3Client
 ) -> List[ProcessingResult]:
     """
-    Process a batch of images serially.
+    Processes a batch of images serially, one by one, in the current thread.
+
+    It iterates through each `ImageItem` in the batch and calls the
+    `process_single_image` function from `common.py` for each one.
 
     Args:
-        batch: List of image items to process
-        config: Processing configuration
-        s3_client: S3 client instance
+        batch: A list of `ImageItem` objects to process.
+        config: `ProcessingConfig` object with settings for the batch.
+        s3_client: A Boto3 S3 client instance.
 
     Returns:
-        List of processing results
+        A list of `ProcessingResult` objects, one for each image processed.
     """
     results = []
 
