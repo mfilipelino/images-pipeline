@@ -19,7 +19,7 @@ from .processors import (
 )
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="S3 Image Processor with multiple concurrency strategies"
@@ -54,7 +54,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     try:
         logger = get_logger("processor")

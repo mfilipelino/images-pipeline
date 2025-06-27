@@ -2,12 +2,13 @@
 
 from typing import List
 
+from mypy_boto3_s3 import S3Client
 from ..core import ImageItem, ProcessingConfig, ProcessingResult
 from .common import process_single_image
 
 
 def process_batch(
-    batch: List[ImageItem], config: ProcessingConfig, s3_client
+    batch: List[ImageItem], config: ProcessingConfig, s3_client: S3Client
 ) -> List[ProcessingResult]:
     """
     Process a batch of images serially.
@@ -20,7 +21,7 @@ def process_batch(
     Returns:
         List of processing results
     """
-    results = []
+    results: List[ProcessingResult] = []
 
     for item in batch:
         result = process_single_image(s3_client, item, config)

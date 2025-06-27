@@ -1,9 +1,20 @@
 [project]
-name = "images_pipeline"
+name = "images-pipeline"
 version = "0.1.0"
-description = "A modern Python project for image processing pipeline."
-authors = [{ name = "Your Name", email = "you@example.com" }]
+description = "A comprehensive guide to optimizing image processing pipelines with real-world benchmarks and performance analysis"
+authors = [{ name = "Marcos Lino", email = "mfilipelino@gmail.com" }]
+license = "MIT"
+readme = "README.md"
 requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
 dependencies = [
     "pydantic>=2.0",
     "boto3>=1.34.0",
@@ -12,6 +23,12 @@ dependencies = [
     "numpy>=1.24.0",
     "aioboto3>=12.0.0",
 ]
+
+[project.urls]
+"Homepage" = "https://github.com/mfilipelino/images-pipeline"
+"Repository" = "https://github.com/mfilipelino/images-pipeline"
+"Bug Tracker" = "https://github.com/mfilipelino/images-pipeline/issues"
+
 
 [project.scripts]
 images-pipeline = "images_pipeline.main:main"
@@ -24,6 +41,7 @@ dev = [
     "pyright>=1.1.389",
     "ruff>=0.9.3",
     "pre-commit>=4.0.1",
+    "boto3-stubs[s3]>=1.38.46",
 ]
 
 [tool.ruff]
@@ -36,7 +54,6 @@ typeCheckingMode = "strict"
 reportMissingImports = true
 reportMissingTypeStubs = false
 include = ["src"]
-ignore = ["src/images_pipeline/core/image_utils.py", "src/images_pipeline/processors/*.py", "src/images_pipeline/process_images.py"]
 
 [tool.uv]
 package = true
