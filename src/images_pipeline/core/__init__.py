@@ -12,6 +12,14 @@ from .logging_config import (
     get_logger,
     setup_logger,
 )
+from .exceptions import (
+    ImagesPipelineError,
+    ImageProcessingError,
+    S3Error,
+    ConfigurationError,
+    with_error_handling,
+    batch_error_handler,
+)
 from .models import ImageItem, ProcessingConfig, ProcessingResult
 
 __all__ = [
@@ -26,4 +34,10 @@ __all__ = [
     "setup_logger",
     "get_logger",
     "configure_multiprocessing_logging",
+    "ImagesPipelineError",
+    "ImageProcessingError",
+    "S3Error",
+    "ConfigurationError",
+    "with_error_handling",
+    "batch_error_handler",
 ]
