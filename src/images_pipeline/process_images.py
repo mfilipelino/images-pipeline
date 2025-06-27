@@ -9,7 +9,11 @@ Supports multiple concurrency strategies: serial, multithread, multiprocess, asy
 import sys
 import argparse
 
-from .core import ProcessingConfig, get_logger
+from .core import (
+    ProcessingConfig,
+    get_logger,
+    ImagesPipelineError,
+)
 from .processors.common import run_processing
 from .processors import (
     serial_process_batch,
@@ -19,8 +23,12 @@ from .processors import (
 )
 
 
-def parse_args():
-    """Parse command line arguments."""
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed CLI arguments.
+    """
     parser = argparse.ArgumentParser(
         description="S3 Image Processor with multiple concurrency strategies"
     )
@@ -54,8 +62,8 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    """Main entry point."""
+def main() -> None:
+    """Main entry point for the CLI."""
     try:
         logger = get_logger("processor")
         logger.info("Starting S3 Image Processor")
@@ -96,7 +104,11 @@ def main():
     except KeyboardInterrupt:
         logger = get_logger("processor")
         logger.warning("Processing interrupted by user.")
-    except Exception as e:
+    except ImagesPipelineError as exc:
+        logger = get_logger("processor")
+        logger.error(f"Processing failed: {exc}")
+        sys.exit(1)
+    except Exception as e:  # noqa: BLE001
         logger = get_logger("processor")
         logger.error(f"Processing failed: {e}", exc_info=True)
         sys.exit(1)
