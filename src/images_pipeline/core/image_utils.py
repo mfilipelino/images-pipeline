@@ -1,7 +1,7 @@
 """Image processing utilities for the images pipeline."""
 
 from collections.abc import Iterable
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from PIL import Image
@@ -73,17 +73,17 @@ def sklearn_kmeans_quantize(img: "Image.Image", k: int = 8) -> "Image.Image":
     pixels = img_array.reshape(-1, 3)
 
     # Apply K-means clustering
-    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-    kmeans.fit(pixels)
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init="auto")
+    kmeans.fit(pixels)  # type: ignore[reportUnknownMemberType]
 
     # Replace each pixel with its cluster center
-    quantized_pixels = kmeans.cluster_centers_[kmeans.labels_]
+    quantized_pixels = kmeans.cluster_centers_[kmeans.labels_]  # type: ignore[reportUnknownMemberType,reportUnknownVariableType]
 
     # Reshape back to image dimensions and convert to uint8
-    quantized_array = quantized_pixels.reshape(img_array.shape).astype(np.uint8)
+    quantized_array = quantized_pixels.reshape(img_array.shape).astype(np.uint8)  # type: ignore[reportUnknownMemberType,reportUnknownVariableType]
 
     # Convert back to PIL Image
-    return Image.fromarray(quantized_array)
+    return Image.fromarray(quantized_array)  # type: ignore[reportUnknownArgumentType]
 
 
 def apply_transformation(img: "Image.Image", transformation: str) -> "Image.Image":
@@ -125,37 +125,43 @@ def extract_exif_data(img: "Image.Image") -> Dict[str, Any]:
     exif_dict = {}
 
     # Basic image information
-    exif_dict.update(
+    exif_dict.update(  # type: ignore[reportUnknownMemberType]
         {
             "width": img.width,
             "height": img.height,
-            "format": img.format,
+            "format": img.format or "unknown",
             "mode": img.mode,
         }
     )
 
     # Extract EXIF data if available
-    if hasattr(img, "_getexif") and img._getexif() is not None:
-        exif = img._getexif()
-        for tag_id, value in exif.items():
-            tag = TAGS.get(tag_id, tag_id)
+    if hasattr(img, "_getexif"):
+        exif_data_raw = img._getexif()  # type: ignore[reportAttributeAccessIssue]
+        if exif_data_raw is not None:
+            for tag_id, value in exif_data_raw.items():  # type: ignore[reportUnknownMemberType,reportUnknownVariableType]
+                tag = TAGS.get(tag_id, tag_id)  # type: ignore[reportUnknownArgumentType]
 
-            # Skip GPS data for privacy
-            if "gps" in str(tag).lower():
-                continue
+                # Skip GPS data for privacy
+                if "gps" in str(tag).lower():
+                    continue
 
-            # Convert complex types to strings for JSON serialization
-            if isinstance(value, bytes):
-                try:
-                    value = value.decode("utf-8")
-                except UnicodeDecodeError:
-                    value = str(value)
-            elif isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
-                value = str(value)
+                # Convert complex types to strings for JSON serialization
+                processed_value: Union[str, int, float]
+                if isinstance(value, bytes):
+                    try:
+                        processed_value = value.decode("utf-8")
+                    except UnicodeDecodeError:
+                        processed_value = str(value)
+                elif isinstance(value, (str, int, float)):
+                    processed_value = value
+                elif isinstance(value, Iterable):
+                    processed_value = str(value)  # type: ignore[reportUnknownArgumentType]
+                else:
+                    processed_value = str(value)  # type: ignore[reportUnknownArgumentType]
 
-            exif_dict[str(tag)] = value
+                exif_dict[str(tag)] = processed_value
 
-    return exif_dict
+    return exif_dict  # type: ignore[reportUnknownVariableType]
 
 
 def calculate_dest_key(source_key: str, source_prefix: str, dest_prefix: str) -> str:

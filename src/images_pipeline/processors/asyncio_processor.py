@@ -2,9 +2,10 @@
 
 import asyncio
 import io
-from typing import List
+from typing import List, Any
 
 import aioboto3
+from mypy_boto3_s3 import S3Client
 from PIL import Image
 
 from ..core import (
@@ -20,7 +21,7 @@ from ..core.image_utils import (
 
 
 async def process_single_image_async(
-    s3_client, item: ImageItem, config: ProcessingConfig
+    s3_client: Any, item: ImageItem, config: ProcessingConfig
 ) -> ProcessingResult:
     """Process a single image asynchronously."""
     logger = get_logger("asyncio-processor")
@@ -39,7 +40,7 @@ async def process_single_image_async(
         # Step 2: Load and process image (CPU-bound, but we're doing it anyway)
         image_stream = io.BytesIO(image_bytes)
         image = Image.open(image_stream)
-        image.load()
+        image.load()  # type: ignore[reportUnknownMemberType]
 
         logger.debug(
             f"[{item.source_key}] Loaded image: {image.size[0]}x{image.size[1]}"
@@ -91,7 +92,7 @@ async def process_batch_async(
     """Process a batch of images asynchronously using shared S3 client."""
     # Create shared S3 session and client
     session = aioboto3.Session()
-    async with session.client("s3") as s3_client:
+    async with session.client("s3") as s3_client:  # type: ignore[reportUnknownMemberType,reportGeneralTypeIssues]
         # Process all items concurrently
         tasks = [process_single_image_async(s3_client, item, config) for item in batch]
 
@@ -99,7 +100,7 @@ async def process_batch_async(
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Convert exceptions to ProcessingResult objects
-        processed_results = []
+        processed_results: List[ProcessingResult] = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 processed_results.append(
@@ -111,13 +112,13 @@ async def process_batch_async(
                     )
                 )
             else:
-                processed_results.append(result)
+                processed_results.append(result)  # type: ignore[reportArgumentType]
 
         return processed_results
 
 
 def process_batch(
-    batch: List[ImageItem], config: ProcessingConfig, s3_client
+    batch: List[ImageItem], config: ProcessingConfig, s3_client: S3Client
 ) -> List[ProcessingResult]:
     """
     Process a batch of images using asyncio.

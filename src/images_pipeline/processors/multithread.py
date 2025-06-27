@@ -3,12 +3,13 @@
 from typing import List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from mypy_boto3_s3 import S3Client
 from ..core import ImageItem, ProcessingConfig, ProcessingResult
 from .common import process_single_image
 
 
 def process_batch(
-    batch: List[ImageItem], config: ProcessingConfig, s3_client
+    batch: List[ImageItem], config: ProcessingConfig, s3_client: S3Client
 ) -> List[ProcessingResult]:
     """
     Process a batch of images using multithreading.
@@ -21,7 +22,7 @@ def process_batch(
     Returns:
         List of processing results
     """
-    results = []
+    results: List[ProcessingResult] = []
     max_workers = min(
         8, len(batch)
     )  # More threads than processes since they're lighter
