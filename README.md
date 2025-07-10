@@ -70,6 +70,8 @@ images-pipeline version
 images-pipeline --help
 ```
 
+https://www.youtube.com/watch?v=wB9tIg209-8
+
 ### Available Processors
 
 | Processor | Best For | Performance |
