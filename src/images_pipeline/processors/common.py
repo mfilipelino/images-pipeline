@@ -2,9 +2,10 @@
 
 import io
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 
 import boto3
+from mypy_boto3_s3 import S3Client
 from PIL import Image
 
 from ..core import (
@@ -22,10 +23,10 @@ from ..core.image_utils import (
 )
 
 
-def list_jpeg_files(s3_client, bucket: str, prefix: str) -> List[str]:
+def list_jpeg_files(s3_client: S3Client, bucket: str, prefix: str) -> List[str]:
     """List all JPEG files in S3 bucket/prefix."""
     logger = get_logger("processor")
-    files = []
+    files: List[str] = []
 
     list_prefix = prefix
     if prefix and not prefix.endswith("/"):
@@ -37,7 +38,9 @@ def list_jpeg_files(s3_client, bucket: str, prefix: str) -> List[str]:
 
         for page in paginator.paginate(Bucket=bucket, Prefix=list_prefix):
             for obj in page.get("Contents", []):
-                key = obj["Key"]
+                key = obj.get("Key")
+                if not key:
+                    continue
                 # Only process JPEG files
                 if key.lower().endswith((".jpg", ".jpeg")) and not key.endswith("/"):
                     files.append(key)
@@ -51,7 +54,7 @@ def list_jpeg_files(s3_client, bucket: str, prefix: str) -> List[str]:
 
 
 def process_single_image(
-    s3_client, item: ImageItem, config: ProcessingConfig
+    s3_client: S3Client, item: ImageItem, config: ProcessingConfig
 ) -> ProcessingResult:
     """Process a single image: Download → EXIF → Transform → Upload."""
     logger = get_logger("processor")
@@ -68,7 +71,7 @@ def process_single_image(
         # Step 2: Load image
         image_stream = io.BytesIO(image_bytes)
         image = Image.open(image_stream)
-        image.load()
+        image.load()  # type: ignore[reportUnknownMemberType]
         logger.debug(
             f"[{item.source_key}] Image loaded. Size: {image.size[0]}x{image.size[1]}."
         )
@@ -125,7 +128,7 @@ def create_work_items(
     source_files: List[str], config: ProcessingConfig
 ) -> List[ImageItem]:
     """Create work items from source file list."""
-    work_items = []
+    work_items: List[ImageItem] = []
     for source_key in source_files:
         dest_key = calculate_dest_key(
             source_key, config.source_prefix, config.dest_prefix
@@ -207,7 +210,9 @@ def log_batch_progress(
     )
 
 
-def discover_and_validate_files(s3_client, config: ProcessingConfig) -> List[str]:
+def discover_and_validate_files(
+    s3_client: S3Client, config: ProcessingConfig
+) -> List[str]:
     """
     Discover and validate JPEG files to process.
 
@@ -260,8 +265,10 @@ def count_batch_results(results: List[ProcessingResult]) -> Tuple[int, int]:
 def process_all_batches(
     work_items: List[ImageItem],
     config: ProcessingConfig,
-    s3_client,
-    process_batch_fn,
+    s3_client: S3Client,
+    process_batch_fn: Callable[
+        [List[ImageItem], ProcessingConfig, S3Client], List[ProcessingResult]
+    ],
 ) -> Tuple[int, int]:
     """
     Process all work items in batches.
@@ -309,7 +316,9 @@ def process_all_batches(
 def run_processing(
     config: ProcessingConfig,
     processor_name: str,
-    process_batch_fn,
+    process_batch_fn: Callable[
+        [List[ImageItem], ProcessingConfig, S3Client], List[ProcessingResult]
+    ],
 ) -> None:
     """
     Main processing function that orchestrates the workflow.
@@ -325,7 +334,7 @@ def run_processing(
     try:
         # Create S3 client
         session = boto3.Session()
-        s3_client = session.client("s3")
+        s3_client: S3Client = session.client("s3")  # type: ignore[reportUnknownMemberType]
 
         # Discover and validate files
         try:

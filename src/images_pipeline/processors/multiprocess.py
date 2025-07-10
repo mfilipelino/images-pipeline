@@ -1,10 +1,11 @@
 """Multiprocess processor implementation - uses process pool for parallelism."""
 
 import io
-from typing import List
+from typing import List, Tuple
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import boto3
+from mypy_boto3_s3 import S3Client
 from PIL import Image
 
 from ..core import (
@@ -19,7 +20,9 @@ from ..core.image_utils import (
 )
 
 
-def process_single_image_worker(args: tuple) -> ProcessingResult:
+def process_single_image_worker(
+    args: Tuple[str, str, ProcessingConfig],
+) -> ProcessingResult:
     """
     Worker function for multiprocessing.
     Takes a tuple of (source_key, config) to work with multiprocessing.map.
@@ -33,7 +36,7 @@ def process_single_image_worker(args: tuple) -> ProcessingResult:
 
     try:
         # Create S3 client in this process
-        s3_client = boto3.client("s3")
+        s3_client: S3Client = boto3.client("s3")  # type: ignore[reportUnknownMemberType]
 
         # Step 1: Download image
         response = s3_client.get_object(Bucket=config.source_bucket, Key=source_key)
@@ -42,7 +45,7 @@ def process_single_image_worker(args: tuple) -> ProcessingResult:
         # Step 2: Load and process image
         image_stream = io.BytesIO(image_bytes)
         image = Image.open(image_stream)
-        image.load()  # Force loading into memory
+        image.load()  # type: ignore[reportUnknownMemberType]
 
         # Step 3: Extract EXIF data
         exif_data = extract_exif_data(image)
@@ -79,7 +82,7 @@ def process_single_image_worker(args: tuple) -> ProcessingResult:
 
 
 def process_batch(
-    batch: List[ImageItem], config: ProcessingConfig, s3_client
+    batch: List[ImageItem], config: ProcessingConfig, s3_client: S3Client
 ) -> List[ProcessingResult]:
     """
     Process a batch of images using multiprocessing.
@@ -96,7 +99,7 @@ def process_batch(
     work_items = [(item.source_key, item.dest_key, config) for item in batch]
 
     # Process using multiprocessing pool
-    results = []
+    results: List[ProcessingResult] = []
     max_workers = min(4, len(batch))  # Limit workers to avoid overwhelming system
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
