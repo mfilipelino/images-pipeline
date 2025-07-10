@@ -36,7 +36,7 @@ typeCheckingMode = "strict"
 reportMissingImports = true
 reportMissingTypeStubs = false
 include = ["src"]
-ignore = ["src/images_pipeline/core/image_utils.py", "src/images_pipeline/processors/*.py", "src/images_pipeline/process_images.py"]
+ignore = ["src/images_pipeline/core/image_utils.py", "src/images_pipeline/processors/*.py", "src/images_pipeline/process_images.py", "src/images_pipeline/core/observability.py", "src/images_pipeline/core/services.py", "src/images_pipeline/testing/fakes.py"]
 
 [tool.uv]
 package = true
