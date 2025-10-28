@@ -27,12 +27,13 @@ def native_kmeans_quantize(
     and more robust clustering.
 
     Args:
-        img: PIL Image to quantize
-        k: Number of color clusters
-        max_iter: Maximum iterations for K-means
+        img: PIL Image to quantize.
+        k: Number of color clusters.
+        max_iter: Maximum iterations for K-means. This parameter is ignored
+            as the function delegates to `sklearn_kmeans_quantize`.
 
     Returns:
-        Quantized PIL Image
+        Quantized PIL Image.
     """
     import warnings
 
@@ -91,12 +92,16 @@ def apply_transformation(img: "Image.Image", transformation: str) -> "Image.Imag
     Apply the specified transformation to an image.
 
     Args:
-        img: PIL Image to transform
-        transformation: Type of transformation ("grayscale", "kmeans", "native_kmeans")
+        img: PIL Image to transform.
+        transformation: Type of transformation. Available options are:
+            - "grayscale": Converts the image to grayscale.
+            - "kmeans": Applies K-means color quantization using scikit-learn.
+            - "native_kmeans": DEPRECATED. Applies K-means color quantization.
+              Uses 'kmeans' internally.
             Note: "native_kmeans" is deprecated, use "kmeans" instead. See DEPRECATION_NOTICE.md for details.
 
     Returns:
-        Transformed PIL Image
+        Transformed PIL Image.
 
     Raises:
         ValueError: If transformation type is unknown
@@ -117,10 +122,11 @@ def extract_exif_data(img: "Image.Image") -> Dict[str, Any]:
     Extract EXIF metadata from PIL Image, handling privacy concerns.
 
     Args:
-        img: PIL Image to extract EXIF from
+        img: PIL Image to extract EXIF from.
 
     Returns:
-        Dictionary containing EXIF data and image info
+        Dictionary containing EXIF data (if available) and basic image information
+        (width, height, format, mode). GPS data is excluded for privacy.
     """
     exif_dict = {}
 
