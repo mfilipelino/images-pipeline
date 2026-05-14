@@ -1,0 +1,53 @@
+{
+  "report": "static-analysis-report.yaml",
+  "rubric": "static-code-analysis.yaml",
+  "judge_model": "us.anthropic.claude-opus-4-7",
+  "score": 0.8194444444444444,
+  "grades": [
+    {
+      "id": "specific_citations",
+      "grade": 3,
+      "rationale": "The YAML preserves rule codes via by_rule/by_severity maps and tool-reported line-capable tools ran ok (ruff, bandit, pyright), though by_rule maps are empty because counts are zero; structural counts like complexipy.max=18 and vulture variable=1 are traceable to tool outputs."
+    },
+    {
+      "id": "severity_calibration",
+      "grade": 3,
+      "rationale": "Severity distributions are uninflated \u2014 bandit by_severity all zero, pip_audit shows 0 critical/high/medium/low with 36 unknown (honest labeling rather than inflating), and ruff security=0; the honest 'unknown' bucket for pip-audit shows restraint."
+    },
+    {
+      "id": "category_coverage",
+      "grade": 3,
+      "rationale": "Covers correctness/style/security/complexity/modernization (ruff), security (bandit), complexity (radon+complexipy), maintainability (radon.mi), dead code (vulture), deps (pip-audit), secrets (detect_secrets), typing (pyright ok); mypy and ty are not_installed but pyright covers the typing lens."
+    },
+    {
+      "id": "no_speculation",
+      "grade": 4,
+      "rationale": "Every count is derivable from a tool with status=ok, and the report cleanly distinguishes not_installed (mypy, ty) from ok status, with no counts appearing for errored tools."
+    },
+    {
+      "id": "fix_direction",
+      "grade": 2,
+      "rationale": "Per the adaptation note, N/A for this format \u2014 graded 2 by default, though complexipy.over_threshold_15=2 and vulture dead_items=1 do pin fix direction implicitly."
+    },
+    {
+      "id": "tool_grounding",
+      "grade": 3,
+      "rationale": "Clean-pass evidence is strong: radon.cc.total_functions=39, complexipy.total_functions=31, pyright.files_analyzed=16, vulture identified 1 variable, proving tools reached real code; however by_rule maps are empty so no rule-code grounding for the complexipy over-threshold or vulture finding."
+    },
+    {
+      "id": "complexity_metrics",
+      "grade": 4,
+      "rationale": "Full threshold+measurement coverage: complexipy max=18 with over_threshold_15=2, radon.cc.max=10 with over_threshold_10=0, radon.mi.min=52.47 with under_20=0, halstead.max_volume=526.1 with functions_over_1000_volume=0, plus CC and MI distribution breakdowns."
+    },
+    {
+      "id": "restraint",
+      "grade": 4,
+      "rationale": "Per adaptation note, report does not editorialize; ruff by_category.style=0 and no prose commentary appears anywhere in the YAML."
+    },
+    {
+      "id": "not_findings_honesty",
+      "grade": 4,
+      "rationale": "Strong clean-axis evidence: radon.cc.distribution {A:36, B:3, C-F:0}, radon.mi.distribution {A:15, B:0, C:0}, bandit.total=0 cross-confirmed by ruff security=0, detect_secrets.new_since_baseline=0 \u2014 every clean axis is explicitly visible in distributions."
+    }
+  ]
+}
