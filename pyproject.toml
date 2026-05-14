@@ -42,6 +42,11 @@ dev = [
     "ruff>=0.9.3",
     "pre-commit>=4.0.1",
     "boto3-stubs[s3]>=1.38.46",
+    "radon>=6.0.1",
+    "complexipy>=5.4.1",
+    "vulture>=2.16",
+    "pip-audit>=2.10.0",
+    "detect-secrets>=1.5.0",
 ]
 
 [tool.ruff]
@@ -89,3 +94,7 @@ precision = 2
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "build", "dist"]
+skips = []

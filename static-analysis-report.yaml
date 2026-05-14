@@ -1,0 +1,119 @@
+generated_at: "2026-05-14T19:03:23+00:00"
+git:
+  branch: eval/baseline-v1
+  dirty: true
+  sha: ef60c95d2349fc56901c2dfe2a4b59ce59bce4c7
+schema_version: 1
+scope:
+  files_analyzed: 15
+  paths:
+    - src
+  total_lloc: 649
+summary:
+  complexity_violations: 2
+  dead_code: 1
+  maintainability_concerns: 0
+  security_violations: 0
+  type_errors: 0
+  violations_total: 0
+tools:
+  bandit:
+    by_confidence:
+      high: 0
+      low: 0
+      medium: 0
+    by_rule: {}
+    by_severity:
+      high: 0
+      low: 0
+      medium: 0
+    status: ok
+    total: 0
+    version: bandit 1.8.6
+  complexipy:
+    max: 18
+    over_threshold_15: 2
+    status: ok
+    total_functions: 31
+    version: 5.4.1
+  detect_secrets:
+    new_since_baseline: 0
+    status: ok
+    total_in_baseline: 0
+    version: 1.5.0
+  mypy:
+    status: not_installed
+  pip_audit:
+    by_severity:
+      critical: 0
+      high: 0
+      low: 0
+      medium: 0
+      unknown: 36
+    status: ok
+    version: pip-audit 2.10.0
+    vulnerabilities: 36
+  pyright:
+    by_rule: {}
+    by_severity:
+      error: 0
+      information: 0
+      warning: 0
+    files_analyzed: 16
+    status: ok
+    total_errors: 0
+    total_warnings: 0
+    version: 1.1.402
+  radon:
+    cc:
+      distribution:
+        A: 36
+        B: 3
+        C: 0
+        D: 0
+        E: 0
+        F: 0
+      max: 10
+      over_threshold_10: 0
+      total_functions: 39
+    halstead:
+      functions_over_1000_volume: 0
+      max_volume: 526.103733930744
+    mi:
+      distribution:
+        A: 15
+        B: 0
+        C: 0
+      min: 52.475634860662936
+      total_modules: 15
+      under_20: 0
+    raw:
+      comment_ratio: 0.238
+      total_lloc: 649
+      total_sloc: 847
+    status: ok
+  ruff:
+    by_category:
+      complexity: 0
+      correctness: 0
+      modernization: 0
+      other: 0
+      security: 0
+      style: 0
+    by_rule: {}
+    status: ok
+    total_violations: 0
+    version: ruff 0.12.0
+  ty:
+    status: not_installed
+  vulture:
+    by_type:
+      attribute: 0
+      class: 0
+      function: 0
+      import: 0
+      other: 0
+      variable: 1
+    dead_items: 1
+    status: ok
+    version: vulture 2.16
